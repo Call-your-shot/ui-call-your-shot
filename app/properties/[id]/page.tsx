@@ -60,20 +60,20 @@ export default function PropertyDetailPage() {
       setActionError(payload.message ?? "Could not send invitation");
       return;
     }
-    refresh();
+    await refresh();
     setInviteOpen(false);
     setInviteEmail("");
   }
 
-  async function acknowledgeLeaveRequest() {
+  async function updateLeaveRequestStatus(action: "acknowledge" | "approve") {
     if (!property?.leaveRequest) return;
-    const response = await fetch(`/api/properties/${encodeURIComponent(property.id)}/leave-request/acknowledge`, { method: "POST" });
+    const response = await fetch(`/api/properties/${encodeURIComponent(property.id)}/leave-request/${action}`, { method: "POST" });
     if (!response.ok) {
       const payload = await response.json();
-      setActionError(payload.message ?? "Could not acknowledge leave request");
+      setActionError(payload.message ?? `Could not ${action} leave request`);
       return;
     }
-    refresh();
+    await refresh();
   }
 
   return (
@@ -238,10 +238,21 @@ export default function PropertyDetailPage() {
 
                 {property.leaveRequest.status === "pending" ? (
                   <div className="mt-4 flex gap-3">
-                    <Button onClick={acknowledgeLeaveRequest}>Acknowledge</Button>
+                    <Button onClick={() => updateLeaveRequestStatus("acknowledge")}>Acknowledge</Button>
+                    <Button variant="secondary" onClick={() => updateLeaveRequestStatus("approve")}>Approve move-out</Button>
                     <Button variant="secondary">
                       <MessageCircle size={16} aria-hidden="true" />
                       Message tenant
+                    </Button>
+                  </div>
+                ) : property.leaveRequest.status === "approved" ? (
+                  <div className="mt-4">
+                    <Callout variant="success" heading="Move-out approved">
+                      The tenant has been notified. The plan will close at the move-out date and the remaining balance stays with the property.
+                    </Callout>
+                    <Button variant="secondary" className="mt-3" onClick={() => setTab("Tenants")}>
+                      <UserPlus size={16} aria-hidden="true" />
+                      Invite new tenant
                     </Button>
                   </div>
                 ) : (

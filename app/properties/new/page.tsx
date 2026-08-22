@@ -48,7 +48,7 @@ export default function AddPropertyPage() {
     });
     const created = await response.json();
     if (!response.ok) return;
-    refresh();
+    await refresh();
     setNewPropertyId(created.id);
     setStep("done");
   }

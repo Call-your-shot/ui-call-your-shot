@@ -39,7 +39,7 @@ interface DemoState {
   setForceRefusal: (v: boolean) => void;
   panelOpen: boolean;
   setPanelOpen: (v: boolean) => void;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 const DemoContext = createContext<DemoState | null>(null);
@@ -149,7 +149,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       setForceRefusal,
       panelOpen,
       setPanelOpen,
-      refresh: () => void loadAccount(),
+      refresh: loadAccount,
     }),
     [account, forceRefusal, hydrated, loadAccount, panelOpen, scenario, setAccountId]
   );

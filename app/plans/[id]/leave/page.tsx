@@ -64,7 +64,7 @@ export default function LeavePlanPage() {
       setError(payload.message ?? "Could not submit leave request");
       return;
     }
-    refresh();
+    await refresh();
     setStep(4);
   }
 
@@ -78,7 +78,7 @@ export default function LeavePlanPage() {
       setError(payload.message ?? "Could not withdraw leave request");
       return;
     }
-    refresh();
+    await refresh();
     router.push(`/plans/${tenancy.id}`);
   }
 
@@ -215,6 +215,11 @@ export default function LeavePlanPage() {
                 label="Landlord acknowledged"
                 date={tenancy.leaveRequest.timeline.landlordAcknowledged}
                 done={tenancy.leaveRequest.status !== "pending"}
+              />
+              <TimelineStep
+                label="Move-out approved"
+                date={tenancy.leaveRequest.timeline.approved}
+                done={tenancy.leaveRequest.status === "approved"}
               />
               <TimelineStep
                 label="Final statement issued"

@@ -22,6 +22,12 @@ interface SolarRequestBody {
   mock?: boolean;
 }
 
+function mockResultForAddress(scenarioId: ScenarioId, address?: string) {
+  const result = buildMockSolarResult(scenarioId);
+  const formattedAddress = address?.trim();
+  return formattedAddress ? { ...result, formattedAddress } : result;
+}
+
 export async function POST(req: NextRequest) {
   let body: SolarRequestBody;
   try {
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (forceMock || !apiKey) {
     return NextResponse.json<SolarApiResponse>({
       ok: true,
-      result: buildMockSolarResult(scenarioId),
+      result: mockResultForAddress(scenarioId, body.address),
     });
   }
 
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest) {
       ok: false,
       code: "API_ERROR",
       message: err instanceof Error ? err.message : "Unknown error",
-      fallback: buildMockSolarResult(scenarioId),
+      fallback: mockResultForAddress(scenarioId, body.address),
     });
   }
 }

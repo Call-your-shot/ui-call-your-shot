@@ -39,6 +39,7 @@ export interface MonthlyIncomeRecord {
 export interface LeaveTimeline {
   noticeGiven: string;
   landlordAcknowledged?: string;
+  approved?: string;
   finalStatementIssued?: string;
   planClosed?: string;
 }
@@ -48,7 +49,7 @@ export interface LeaveRequest {
   moveOutDate: string;
   reason: string;
   note?: string;
-  status: "pending" | "acknowledged" | "withdrawn";
+  status: "pending" | "acknowledged" | "approved" | "withdrawn";
   timeline: LeaveTimeline;
 }
 
@@ -116,7 +117,7 @@ export interface PropertyLeaveRequest {
   requestedDate: string;
   moveOutDate: string;
   reason: string;
-  status: "pending" | "acknowledged";
+  status: "pending" | "acknowledged" | "approved";
 }
 
 export interface OwnedProperty {
