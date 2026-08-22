@@ -14,6 +14,7 @@ import {
   type Tenancy,
 } from "@/lib/accounts";
 import { formatDate } from "@/lib/mockData";
+import { emailDisplayName, useSignedInEmail } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -46,6 +47,7 @@ function formatCurrency(v: number) {
 
 export default function DashboardPage() {
   const { account } = useDemo();
+  const signedInEmail = useSignedInEmail();
   const tenant = isTenant(account);
   const landlord = isLandlord(account);
 
@@ -55,7 +57,9 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-h1">Welcome back, {account.name.split(" ")[0]}</h1>
+      <h1 className="text-h1">
+        Welcome back, {signedInEmail ? emailDisplayName(signedInEmail) : account.name.split(" ")[0]}
+      </h1>
       <p className="text-body mt-1">Here&apos;s where things stand today.</p>
 
       {tenant && <TenantSection tenancies={account.tenancies} />}

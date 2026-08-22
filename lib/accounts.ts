@@ -559,3 +559,21 @@ export const defaultAccountId = "priya";
 export function formatPropertyAddress(address: Address): string {
   return formatAddress(address);
 }
+
+/** Looks up the account whose email matches (case-insensitive) — the only
+ * lookup key the backend's email-based endpoints have to go on; see
+ * lib/session.ts. */
+export function getAccountByEmail(email: string): Account | undefined {
+  const target = email.trim().toLowerCase();
+  return Object.values(mockAccounts).find((a) => a.email.toLowerCase() === target);
+}
+
+/** Finds a tenancy by id across every mock account — tenancy ids are
+ * globally unique, so a single account doesn't need to be known up front. */
+export function findTenancyById(tenancyId: string): Tenancy | undefined {
+  for (const account of Object.values(mockAccounts)) {
+    const tenancy = getTenancy(account, tenancyId);
+    if (tenancy) return tenancy;
+  }
+  return undefined;
+}

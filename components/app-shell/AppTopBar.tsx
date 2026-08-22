@@ -2,6 +2,7 @@
 
 import Button from "@/components/ui/Button";
 import { useDemo } from "@/lib/demo-context";
+import { emailInitials, useSignedInEmail } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import { Bell, Menu, Plus, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -34,6 +35,7 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const pathname = usePathname();
   const { title, breadcrumb } = getPageMeta(pathname);
   const { account } = useDemo();
+  const signedInEmail = useSignedInEmail();
 
   const [scrolled, setScrolled] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -143,8 +145,11 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
             )}
           </div>
 
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-lighter text-[13px] font-bold text-primary-darker">
-            {account.avatarInitials}
+          <span
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-lighter text-[13px] font-bold text-primary-darker"
+            title={signedInEmail ?? undefined}
+          >
+            {signedInEmail ? emailInitials(signedInEmail) : account.avatarInitials}
           </span>
         </div>
       </div>

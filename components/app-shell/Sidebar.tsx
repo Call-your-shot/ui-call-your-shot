@@ -3,6 +3,7 @@
 import Logo from "@/components/civic/Logo";
 import { dashboardNavItem, getNavGroups, utilityNavItems, type NavItem } from "./navData";
 import { useDemo } from "@/lib/demo-context";
+import { emailDisplayName, emailInitials, useSignedInEmail } from "@/lib/session";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -41,6 +42,7 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 export default function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const { account } = useDemo();
+  const signedInEmail = useSignedInEmail();
   const navGroups = getNavGroups(account);
 
   return (
@@ -92,11 +94,13 @@ export default function Sidebar({ className }: { className?: string }) {
       <div className="p-3">
         <div className="flex items-center gap-2.5 rounded-2xl bg-grey-200 p-4">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-lighter text-[13px] font-bold text-primary-darker">
-            {account.avatarInitials}
+            {signedInEmail ? emailInitials(signedInEmail) : account.avatarInitials}
           </span>
           <div className="min-w-0">
-            <p className="truncate text-[14px] font-semibold text-grey-900">{account.name}</p>
-            <p className="truncate text-[12px] text-grey-500">{account.email}</p>
+            <p className="truncate text-[14px] font-semibold text-grey-900">
+              {signedInEmail ? emailDisplayName(signedInEmail) : account.name}
+            </p>
+            {!signedInEmail && <p className="truncate text-[12px] text-grey-500">{account.email}</p>}
           </div>
         </div>
       </div>
