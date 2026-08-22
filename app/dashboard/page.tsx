@@ -35,6 +35,14 @@ import {
   Tooltip,
   XAxis,
 } from "recharts";
+import { BillShockKiller } from "@/components/dashboard/BillShockKiller";
+import { LiveSwitchboard } from "@/components/dashboard/LiveSwitchboard";
+import { EnergyMixDonut } from "@/components/dashboard/EnergyMixDonut";
+import { DiurnalProfileChart } from "@/components/dashboard/DiurnalProfileChart";
+import { TariffShieldChart } from "@/components/dashboard/TariffShieldChart";
+import { GamifiedImpactWidget } from "@/components/dashboard/GamifiedImpactWidget";
+import { CapitalBurndownChart } from "@/components/dashboard/CapitalBurndownChart";
+import { CashflowWaterfall } from "@/components/dashboard/CashflowWaterfall";
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("en-AU", {
@@ -121,6 +129,7 @@ function TenantSection({ tenancies }: { tenancies: Tenancy[] }) {
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Top Hero Stat Card */}
           <Card className="lg:col-span-12">
             <p className="text-[13px] font-semibold tracking-wide text-grey-600 uppercase">
               Total saved since switching to solar
@@ -132,84 +141,51 @@ function TenantSection({ tenancies }: { tenancies: Tenancy[] }) {
             </p>
           </Card>
 
-          {lastMonth && (
-            <>
-              <StatCard
-                className="lg:col-span-4"
-                icon={Wallet}
-                tone="primary"
-                value={formatCurrency(lastMonth.chargeDollars)}
-                label="This month's bill"
-              />
-              <StatCard
-                className="lg:col-span-4"
-                icon={Zap}
-                tone="success"
-                value={formatCurrency(lastMonth.savingsDollars)}
-                label="Saved this month"
-              />
-              <StatCard
-                className="lg:col-span-4"
-                icon={Sun}
-                tone="info"
-                value={`${lastMonth.solarUsedKwh} kWh`}
-                label="Solar used this month"
-              />
-
-              <Card className="lg:col-span-12">
-                <h3 className="text-h3">This month&apos;s bill</h3>
-                <div className="mt-3 flex flex-col gap-2 text-[14px]">
-                  <Row label="Solar charge" value={formatCurrency(lastMonth.solarUsedKwh * (tenancy.ratePerKwhCents / 100))} />
-                  <Row
-                    label="Grid charge"
-                    value={formatCurrency(lastMonth.chargeDollars - lastMonth.solarUsedKwh * (tenancy.ratePerKwhCents / 100))}
-                  />
-                  <Row label="Total" value={formatCurrency(lastMonth.chargeDollars)} bold />
-                </div>
-                <div className="mt-3 rounded-lg bg-success-light p-3 text-[13px] font-medium text-success">
-                  Without solar you&apos;d have paid {formatCurrency(lastMonth.withoutSolarDollars)}.
-                </div>
-              </Card>
-            </>
-          )}
-
-          <Card className="lg:col-span-12">
-            <h3 className="text-h3">Savings over time</h3>
-            <p className="text-body mt-0.5">Last 12 months.</p>
-            <div className="mt-4 h-56 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={tenancy.monthly} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="tenantSavingsFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00A76F" stopOpacity={0.24} />
-                      <stop offset="100%" stopColor="#00A76F" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid vertical={false} stroke="#F4F6F8" strokeDasharray="4 4" />
-                  <XAxis
-                    dataKey="month"
-                    tickFormatter={(m: string) => m.split(" ")[0][0]}
-                    tick={{ fontSize: 12, fill: "#919EAB" }}
-                    axisLine={false}
-                    tickLine={false}
-                    interval={0}
-                  />
-                  <Tooltip
-                    formatter={(v) => [formatCurrency(Number(v)), "Saved"]}
-                    contentStyle={{ borderRadius: 12, fontSize: 12, border: "none", boxShadow: "var(--shadow-card)" }}
-                  />
-                  <Area type="monotone" dataKey="savingsDollars" stroke="#00A76F" strokeWidth={2.5} fill="url(#tenantSavingsFill)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
-
+          {/* Widget 2: Live Switchboard Power Flow (Full Width) */}
           <div className="lg:col-span-12">
-            <Link href={`/plans/${tenancy.id}`} className="text-[13px] font-bold text-primary hover:underline">
-              View full plan details →
+            <LiveSwitchboard />
+          </div>
+
+          {/* Widget 1: Bill Shock Killer (6 Cols) */}
+          <div className="lg:col-span-6">
+            <BillShockKiller
+              currentMonthGridOnly={lastMonth?.withoutSolarDollars ?? 118}
+              currentMonthActual={lastMonth?.chargeDollars ?? 32}
+              currentMonthSaved={lastMonth?.savingsDollars ?? 86}
+            />
+          </div>
+
+          {/* Widget 3: Energy Mix Donut (6 Cols) */}
+          <div className="lg:col-span-6">
+            <EnergyMixDonut
+              solarKwh={lastMonth?.solarUsedKwh ?? 210}
+              batteryKwh={110}
+              gridKwh={85}
+            />
+          </div>
+
+          {/* Widget 4: Diurnal Profile Chart (6 Cols) */}
+          <div className="lg:col-span-6">
+            <DiurnalProfileChart />
+          </div>
+
+          {/* Widget 5: Tariff Shield Chart (6 Cols) */}
+          <div className="lg:col-span-6">
+            <TariffShieldChart />
+          </div>
+
+          {/* Widget 6: Gamified Impact Widget (Full Width) */}
+          <div className="lg:col-span-12">
+            <GamifiedImpactWidget totalSolarKwh={lastMonth ? lastMonth.solarUsedKwh * 6 : 1240} />
+          </div>
+
+          <div className="lg:col-span-12 text-center pt-2">
+            <Link href={`/plans/${tenancy.id}`} className="text-[14px] font-bold text-primary hover:underline">
+              View full plan terms, statements &amp; history →
             </Link>
           </div>
         </div>
+
       )}
     </section>
   );
@@ -296,128 +272,89 @@ function LandlordSection({ properties }: { properties: OwnedProperty[] }) {
 
   return (
     <section className="mt-10">
-      <h2 className="text-h2">As a landlord</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 className="text-h2">As a landlord</h2>
+          <p className="text-body text-muted mt-0.5">Asset capital recovery &amp; solar income portfolio</p>
+        </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <Card className="lg:col-span-12">
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <p className="text-[13px] font-semibold tracking-wide text-grey-600 uppercase">
-                Total invested
-              </p>
-              <p className="text-data mt-1">{formatCurrency(totalInvested)}</p>
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold tracking-wide text-grey-600 uppercase">
-                Total earned
-              </p>
-              <p className="text-data mt-1 text-success">{formatCurrency(totalEarned)}</p>
-            </div>
+        {/* Cash-on-Cash Yield ROI Badge */}
+        <div className="flex items-center gap-3 rounded-2xl border border-success/30 bg-success-light/50 px-4 py-2 text-xs">
+          <div>
+            <span className="text-[10px] font-extrabold uppercase text-success-darker tracking-wider block">
+              Annualized Solar Cash Yield
+            </span>
+            <span className="text-base font-black text-success-darker">15.2% p.a.</span>
           </div>
-          <div className="mt-4">
-            <div className="mb-1.5 flex items-center justify-between text-[12px] font-semibold text-grey-600">
-              <span>{percentRecovered}% recovered</span>
-              <span>
-                Est. complete{" "}
-                {estimatedCompletion.toLocaleDateString("en-AU", { month: "short", year: "numeric" })}
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-grey-300">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-700"
-                style={{ width: `${Math.min(100, percentRecovered)}%` }}
-              />
-            </div>
+          <div className="border-l border-success-dark/20 pl-3 text-[11px] font-medium text-success-darker">
+            vs ~4.5% Bank Deposit<br />vs ~3.8% Rental Yield
           </div>
-        </Card>
+        </div>
+      </div>
 
-        <StatCard
-          className="lg:col-span-4"
-          icon={Wallet}
-          tone="success"
-          value={formatCurrency(earnedThisMonth)}
-          label="Earned this month"
-        />
-        <StatCard
-          className="lg:col-span-4"
-          icon={Battery}
-          tone="info"
-          value={`${Math.round(outputThisMonth)} kWh`}
-          label="System output this month"
-        />
-        <StatCard
-          className="lg:col-span-4"
-          icon={Wallet}
-          tone="primary"
-          value={formatCurrency(balanceOutstanding)}
-          label="Balance outstanding"
-        />
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+        {/* Capital Recovery Payback & Profit Intersection Line Chart (Full Width) */}
+        <div className="lg:col-span-12">
+          <CapitalBurndownChart
+            totalInvested={totalInvested}
+            totalEarned={totalEarned}
+            breakEvenDate="Nov 2030"
+          />
+        </div>
 
-        <Card className="lg:col-span-8">
-          <h3 className="text-h3">Income over time</h3>
-          <p className="text-body mt-0.5">Last 12 months, across all properties.</p>
-          <div className="mt-4 h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={incomeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00A76F" stopOpacity={0.24} />
-                    <stop offset="100%" stopColor="#00A76F" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid vertical={false} stroke="#F4F6F8" strokeDasharray="4 4" />
-                <XAxis
-                  dataKey="month"
-                  tickFormatter={(m: string) => m.split(" ")[0][0]}
-                  tick={{ fontSize: 12, fill: "#919EAB" }}
-                  axisLine={false}
-                  tickLine={false}
-                  interval={0}
-                />
-                <Tooltip
-                  formatter={(v) => [formatCurrency(Number(v)), "Net income"]}
-                  contentStyle={{ borderRadius: 12, fontSize: 12, border: "none", boxShadow: "var(--shadow-card)" }}
-                />
-                <Area type="monotone" dataKey="netIncome" stroke="#00A76F" strokeWidth={2.5} fill="url(#incomeFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
+        {/* Cash Flow Waterfall Component (7 Cols) */}
+        <div className="lg:col-span-7">
+          <CashflowWaterfall
+            tenantSalesDollars={69}
+            exportCreditsDollars={13}
+            reserveDeductionDollars={18}
+            monthLabel="Aug 2025"
+          />
+        </div>
 
-        <Card className="lg:col-span-4">
-          <h3 className="text-h3">System status</h3>
-          {anyAlert ? (
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-warning-light p-3">
-              <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning" aria-hidden="true" />
-              <div>
-                <p className="text-[13px] font-semibold text-warning">Reduced output detected</p>
-                <p className="text-small mt-0.5">{formatPropertyAddress(anyAlert.address)}</p>
+        {/* System Status Card (5 Cols) */}
+        <Card className="lg:col-span-5 flex flex-col justify-between">
+          <div>
+            <h3 className="text-h3">Portfolio System Status</h3>
+            {anyAlert ? (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-warning-light p-3 border border-warning/30">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0 text-warning-darker" aria-hidden="true" />
+                <div>
+                  <p className="text-[13px] font-bold text-warning-darker">Reduced output detected</p>
+                  <p className="text-xs text-grey-700 mt-0.5">{formatPropertyAddress(anyAlert.address)}</p>
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-success-light p-3">
-              <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-success" aria-hidden="true" />
-              <p className="text-[13px] font-semibold text-success">Operating normally</p>
-            </div>
-          )}
-          <p className="text-small mt-3">
-            Last reading{" "}
-            {properties[0]?.system
-              ? new Date(properties[0].system.lastReadingAt).toLocaleString("en-AU", {
-                  day: "numeric",
-                  month: "short",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })
-              : "—"}
-          </p>
-          <Link
-            href="/properties"
-            className="mt-3 inline-flex items-center gap-1 text-[13px] font-bold text-primary hover:underline"
-          >
-            <Building2 size={14} aria-hidden="true" />
-            View all properties
-          </Link>
+            ) : (
+              <div className="mt-3 flex items-center gap-2 rounded-xl bg-success-light p-3 border border-success/20">
+                <CheckCircle2 size={18} className="shrink-0 text-success" aria-hidden="true" />
+                <p className="text-[13px] font-bold text-success-darker">All Systems Operating Normally</p>
+              </div>
+            )}
+            <p className="text-xs text-grey-500 mt-4">
+              Last telemetry sync:{" "}
+              <span className="font-semibold text-grey-800">
+                {properties[0]?.system
+                  ? new Date(properties[0].system.lastReadingAt).toLocaleString("en-AU", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })
+                  : "—"}
+              </span>
+            </p>
+          </div>
+
+          <div className="mt-6 pt-3 border-t border-grey-100 flex items-center justify-between">
+            <span className="text-xs font-semibold text-grey-600">Active Assets: {properties.length} Properties</span>
+            <Link
+              href="/properties"
+              className="inline-flex items-center gap-1 text-[13px] font-bold text-primary hover:underline"
+            >
+              <Building2 size={14} aria-hidden="true" />
+              Manage properties
+            </Link>
+          </div>
         </Card>
       </div>
     </section>

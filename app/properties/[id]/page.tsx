@@ -8,7 +8,12 @@ import { useDemo } from "@/lib/demo-context";
 import { formatPropertyAddress, getOwnedProperty } from "@/lib/accounts";
 import { formatDate } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Mail, MessageCircle, UserPlus, Zap } from "lucide-react";
+import { AlertTriangle, Download, FileText, Mail, MessageCircle, UserPlus, Zap } from "lucide-react";
+import { SystemHealthGauge } from "@/components/dashboard/SystemHealthGauge";
+import { SinkingFundProgressBar } from "@/components/dashboard/SinkingFundProgressBar";
+import { CapitalBurndownChart } from "@/components/dashboard/CapitalBurndownChart";
+import { CashflowWaterfall } from "@/components/dashboard/CashflowWaterfall";
+import { LiveSwitchboard } from "@/components/dashboard/LiveSwitchboard";
 import { notFound, useParams } from "next/navigation";
 import { useState } from "react";
 import {
@@ -17,9 +22,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  ComposedChart,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
+  YAxis,
 } from "recharts";
 
 function formatCurrency(v: number) {
@@ -78,10 +86,26 @@ export default function PropertyDetailPage() {
 
   return (
     <div>
-      <h1 className="text-h1">{formatPropertyAddress(property.address)}</h1>
-      <p className="text-body mt-1">
-        {property.currentTenant ? `Leased to ${property.currentTenant.name}` : "Not currently tenanted"}
-      </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-h1">{formatPropertyAddress(property.address)}</h1>
+          <p className="text-body mt-1">
+            {property.currentTenant ? `Leased to ${property.currentTenant.name}` : "Not currently tenanted"}
+          </p>
+        </div>
+
+        {/* 1-Click EOFY Tax Pack PDF Button */}
+        <Button
+          variant="secondary"
+          onClick={() => alert(`Downloading EOFY Tax Summary PDF for ${formatPropertyAddress(property.address)}...`)}
+          className="shrink-0"
+        >
+          <FileText size={16} className="text-primary" />
+          <span>EOFY Tax Pack (PDF)</span>
+          <Download size={14} className="text-grey-500" />
+        </Button>
+      </div>
+
       {actionError && <p className="mt-3 rounded-lg bg-error-light p-3 text-small text-error" role="alert">{actionError}</p>}
 
       <div className="mt-6 flex gap-2 overflow-x-auto border-b border-line">
@@ -107,24 +131,60 @@ export default function PropertyDetailPage() {
       <div className="mt-6">
         {tab === "Overview" && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <Card className="lg:col-span-12">
-              <div className="grid grid-cols-2 gap-6">
-                <StatBlock label="Total earned" value={formatCurrency(property.totalEarned)} valueClassName="text-success" />
-                <StatBlock label="Monthly income" value={`${formatCurrency(property.monthlyIncome)}/mo`} />
-              </div>
-              <div className="mt-4">
-                <div className="mb-1.5 flex items-center justify-between text-[12px] font-semibold text-grey-600">
-                  <span>Investment recovered</span>
-                  <span>{percentRecovered}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-grey-300">
-                  <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, percentRecovered)}%` }} />
-                </div>
-              </div>
-            </Card>
+            {/* Payback & Profit Intersection Line Chart (Full Width) */}
+            <div className="lg:col-span-12">
+              <CapitalBurndownChart
+                totalInvested={property.totalInvested}
+                totalEarned={property.totalEarned}
+                breakEvenDate="Nov 2030"
+              />
+            </div>
 
+            {/* Monthly Cash Flow Waterfall (Full Width) */}
+            <div className="lg:col-span-12">
+              <CashflowWaterfall
+                tenantSalesDollars={69}
+                exportCreditsDollars={13}
+                reserveDeductionDollars={18}
+                monthLabel="Aug 2025"
+              />
+            </div>
+
+            {/* System Health Gauge (6 Cols) */}
+            <div className="lg:col-span-6">
+              <SystemHealthGauge
+                efficiencyPercent={property.system?.performancePercent ?? 96}
+                todayGenerationKwh={property.system?.todayGenerationKwh ?? 24.6}
+                currentOutputKw={property.system?.currentOutputKw ?? 3.2}
+                inverterModel={property.system?.inverterModel ?? "Fronius Primo 7.0-1"}
+                warrantyExpiry={property.system?.warrantyExpiry ? formatDate(property.system.warrantyExpiry) : "1 Feb 2033"}
+                hasAlert={!!property.performanceAlert}
+                alertMessage={property.performanceAlert?.message}
+                lastReadingAt={property.system?.lastReadingAt ? new Date(property.system.lastReadingAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" }) : "2:30 PM"}
+              />
+            </div>
+
+            {/* Sinking Fund Reserve Progress (6 Cols) */}
+            <div className="lg:col-span-6">
+              <SinkingFundProgressBar
+                accruedDollars={property.maintenanceReserve?.accrued ?? 486}
+                targetEstimateDollars={property.maintenanceReserve?.nextCostEstimate ?? 1500}
+                nextCostDescription={property.maintenanceReserve?.nextCostDescription ?? "Inverter Replacement"}
+                nextCostDate={property.maintenanceReserve?.nextCostDate ? formatDate(property.maintenanceReserve.nextCostDate) : "1 Feb 2035"}
+              />
+            </div>
+
+            {/* Current Tenant Card */}
             <Card className="lg:col-span-12">
-              <h2 className="text-h3">Current tenant</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-h3">Current tenant status</h2>
+                {property.currentTenant && (
+                  <span className="rounded-full bg-success-light px-3 py-1 text-xs font-bold text-success-darker flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+                    Paid on 1 Aug (Direct Debit)
+                  </span>
+                )}
+              </div>
               {property.currentTenant ? (
                 <div className="mt-3 flex flex-col gap-2 text-[14px]">
                   <Row label="Name" value={property.currentTenant.name} />
@@ -137,7 +197,10 @@ export default function PropertyDetailPage() {
                   Invitation pending{property.pendingInvitationEmail ? ` — ${property.pendingInvitationEmail}` : ""}.
                 </p>
               ) : (
-                <p className="text-body mt-2">This property is currently vacant.</p>
+                <div className="mt-3 rounded-xl bg-info-light/60 p-4 border border-info/30 text-xs">
+                  <p className="font-bold text-info-darker">Property Currently Vacant — Vacancy Safeguard Active</p>
+                  <p className="text-grey-700 mt-1">Solar generation during vacant period is being exported to grid @ 4¢/kWh feed-in tariff. The system continues earning money while re-letting.</p>
+                </div>
               )}
             </Card>
           </div>
@@ -282,7 +345,7 @@ export default function PropertyDetailPage() {
             ) : (
               <>
                 {property.performanceAlert && (
-                  <Callout variant="warning" heading="Performance alert">
+                  <Callout variant="warning" heading="Performance Alert">
                     <div className="flex items-start gap-2">
                       <AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
                       <span>{property.performanceAlert.message}</span>
@@ -290,51 +353,56 @@ export default function PropertyDetailPage() {
                   </Callout>
                 )}
 
-                <Card>
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                    <StatBlock label="System size" value={`${property.system.sizeKw} kW`} />
-                    <StatBlock label="Panels" value={property.system.panelCount} />
-                    <StatBlock label="Install date" value={formatDate(property.system.installDate)} />
-                    <StatBlock label="Warranty until" value={formatDate(property.system.warrantyExpiry)} />
-                  </div>
-                  <p className="text-small mt-3">Inverter: {property.system.inverterModel}</p>
-                </Card>
+                {/* Live Real-Time Telemetry Power Flow */}
+                <LiveSwitchboard />
 
+                {/* Technical Hardware Spec & Warranty Matrix */}
                 <Card>
-                  <div
-                    className={cn(
-                      "flex items-center gap-2 rounded-lg p-3",
-                      property.system.status === "normal" ? "bg-success-light" : "bg-warning-light"
-                    )}
-                  >
-                    <Zap
-                      size={16}
-                      className={property.system.status === "normal" ? "text-success" : "text-warning"}
-                      aria-hidden="true"
-                    />
-                    <span
-                      className={cn(
-                        "text-[13px] font-semibold",
-                        property.system.status === "normal" ? "text-success" : "text-warning"
-                      )}
-                    >
-                      {property.system.status === "normal" ? "Operating normally" : "Reduced output detected"}
+                  <div className="flex items-center justify-between border-b border-grey-100 pb-3">
+                    <div>
+                      <span className="text-[12px] font-bold tracking-wider text-grey-500 uppercase">
+                        Hardware Specifications &amp; Protection
+                      </span>
+                      <h3 className="text-h3 mt-0.5 text-grey-900">Asset Hardware Matrix</h3>
+                    </div>
+                    <span className="rounded-full bg-success-light px-3 py-1 text-xs font-bold text-success-darker">
+                      All Warranties Active
                     </span>
                   </div>
-                  <div className="mt-4 grid grid-cols-3 gap-4">
-                    <StatBlock label="Today's generation" value={`${property.system.todayGenerationKwh} kWh`} />
-                    <StatBlock label="Current output" value={`${property.system.currentOutputKw} kW`} />
-                    <StatBlock
-                      label="Vs expected"
-                      value={`${property.system.performancePercent}%`}
-                      valueClassName={property.system.performancePercent < 80 ? "text-error" : "text-success"}
-                    />
+
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <div className="rounded-xl border border-grey-200/80 bg-grey-50 p-3.5">
+                      <p className="text-[11px] font-bold text-grey-500 uppercase">Rooftop Solar Array</p>
+                      <p className="text-lg font-black text-grey-900 mt-0.5">{property.system.sizeKw} kW Array</p>
+                      <p className="text-xs font-semibold text-grey-700 mt-1">{property.system.panelCount}x Trina Solar 440W Panels</p>
+                      <p className="text-[11px] font-bold text-success mt-2">25-Yr Performance Warranty (2048)</p>
+                    </div>
+
+                    <div className="rounded-xl border border-grey-200/80 bg-grey-50 p-3.5">
+                      <p className="text-[11px] font-bold text-grey-500 uppercase">Primary Inverter</p>
+                      <p className="text-lg font-black text-grey-900 mt-0.5">{property.system.inverterModel}</p>
+                      <p className="text-xs font-semibold text-grey-700 mt-1">Single-Phase Smart Inverter</p>
+                      <p className="text-[11px] font-bold text-success mt-2">10-Yr Warranty (Until {formatDate(property.system.warrantyExpiry)})</p>
+                    </div>
+
+                    <div className="rounded-xl border border-grey-200/80 bg-grey-50 p-3.5">
+                      <p className="text-[11px] font-bold text-grey-500 uppercase">Battery Storage</p>
+                      <p className="text-lg font-black text-grey-900 mt-0.5">Tesla Powerwall 2</p>
+                      <p className="text-xs font-semibold text-grey-700 mt-1">13.5 kWh Usable Capacity</p>
+                      <p className="text-[11px] font-bold text-info-darker mt-2">90% State of Health (SOH)</p>
+                    </div>
                   </div>
                 </Card>
 
+                {/* 30-Day Daily Solar Yield & Solar Irradiance Chart */}
                 <Card>
                   <div className="flex items-center justify-between">
-                    <h2 className="text-h3">Generation</h2>
+                    <div>
+                      <span className="text-[12px] font-bold tracking-wider text-grey-500 uppercase">
+                        30-Day Generation Telemetry
+                      </span>
+                      <h3 className="text-h3 mt-0.5 text-grey-900">Daily Solar Yield (kWh)</h3>
+                    </div>
                     <div className="flex gap-1 rounded-lg bg-grey-200 p-0.5">
                       {(["daily", "monthly"] as const).map((v) => (
                         <button
@@ -350,40 +418,36 @@ export default function PropertyDetailPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="mt-4 h-56 w-full">
+
+                  <div className="mt-4 h-64 w-full">
                     <ResponsiveContainer width="100%" height="100%">
                       {generationView === "daily" ? (
                         <BarChart
-                          data={property.system.dailyOutputKwh30d.map((kwh, i) => ({ day: i + 1, kwh }))}
+                          data={property.system.dailyOutputKwh30d.map((kwh, i) => ({ day: `Day ${i + 1}`, kwh }))}
                           margin={{ top: 4, right: 4, bottom: 0, left: -20 }}
                         >
                           <CartesianGrid vertical={false} stroke="#F4F6F8" strokeDasharray="4 4" />
                           <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} interval={4} />
+                          <YAxis tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} />
                           <Tooltip
-                            formatter={(v) => [`${v} kWh`, "Generated"]}
+                            formatter={(v) => [`${v} kWh`, "Generation"]}
                             contentStyle={{ borderRadius: 12, fontSize: 12, border: "none", boxShadow: "var(--shadow-card)" }}
                           />
-                          <Bar dataKey="kwh" radius={[3, 3, 0, 0]} fill="#00A76F" />
+                          <Bar dataKey="kwh" radius={[4, 4, 0, 0]} fill="#00A76F" />
                         </BarChart>
                       ) : (
                         <AreaChart data={property.monthly} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                           <defs>
                             <linearGradient id="genFill" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#00A76F" stopOpacity={0.24} />
-                              <stop offset="100%" stopColor="#00A76F" stopOpacity={0} />
+                              <stop offset="0%" stopColor="#00A76F" stopOpacity={0.3} />
+                              <stop offset="100%" stopColor="#00A76F" stopOpacity={0.0} />
                             </linearGradient>
                           </defs>
                           <CartesianGrid vertical={false} stroke="#F4F6F8" strokeDasharray="4 4" />
-                          <XAxis
-                            dataKey="month"
-                            tickFormatter={(m: string) => m.split(" ")[0][0]}
-                            tick={{ fontSize: 11, fill: "#919EAB" }}
-                            axisLine={false}
-                            tickLine={false}
-                            interval={0}
-                          />
+                          <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} />
+                          <YAxis tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} />
                           <Tooltip
-                            formatter={(v) => [`${v} kWh`, "Generated"]}
+                            formatter={(v) => [`${v} kWh`, "Generation"]}
                             contentStyle={{ borderRadius: 12, fontSize: 12, border: "none", boxShadow: "var(--shadow-card)" }}
                           />
                           <Area type="monotone" dataKey="generationKwh" stroke="#00A76F" strokeWidth={2.5} fill="url(#genFill)" />
@@ -393,97 +457,179 @@ export default function PropertyDetailPage() {
                   </div>
                 </Card>
 
-                <Card>
-                  <h2 className="text-h3">Maintenance reserve</h2>
-                  <div className="mt-3 grid grid-cols-2 gap-4">
-                    <StatBlock label="Accrued" value={formatCurrency(property.maintenanceReserve.accrued)} />
-                    <StatBlock
-                      label={property.maintenanceReserve.nextCostDescription}
-                      value={formatDate(property.maintenanceReserve.nextCostDate)}
-                      caption={`Est. ${formatCurrency(property.maintenanceReserve.nextCostEstimate)}`}
+                {/* Sinking Fund & Maintenance Log */}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                  <div className="lg:col-span-7">
+                    <SinkingFundProgressBar
+                      accruedDollars={property.maintenanceReserve?.accrued ?? 486}
+                      targetEstimateDollars={property.maintenanceReserve?.nextCostEstimate ?? 1500}
+                      nextCostDescription={property.maintenanceReserve?.nextCostDescription ?? "Inverter Replacement"}
+                      nextCostDate={property.maintenanceReserve?.nextCostDate ? formatDate(property.maintenanceReserve.nextCostDate) : "1 Feb 2035"}
                     />
                   </div>
-                </Card>
 
-                <Card>
-                  <h2 className="text-h3">Service history</h2>
-                  <div className="mt-3 flex flex-col divide-y divide-dashed divide-line">
-                    {property.system.serviceHistory.map((s) => (
-                      <div key={s.date} className="flex items-center justify-between py-2.5">
-                        <span className="text-[14px] text-grey-900">{s.description}</span>
-                        <span className="text-small">{formatDate(s.date)}</span>
+                  <Card className="lg:col-span-5 flex flex-col justify-between">
+                    <div>
+                      <h3 className="text-h3">Service History</h3>
+                      <div className="mt-3 flex flex-col divide-y divide-dashed divide-line">
+                        {property.system.serviceHistory.map((s) => (
+                          <div key={s.date} className="flex items-center justify-between py-2.5">
+                            <span className="text-[13px] font-semibold text-grey-900">{s.description}</span>
+                            <span className="text-xs text-grey-500 font-medium">{formatDate(s.date)}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </Card>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-grey-100 flex items-center justify-between text-xs font-bold text-primary">
+                      <span>Annual Inspection Completed</span>
+                      <span>Next Due: Aug 2026</span>
+                    </div>
+                  </Card>
+                </div>
               </>
             )}
           </div>
         )}
 
-        {tab === "Financials" && (
-          <div className="flex flex-col gap-6">
-            <Card>
-              <h2 className="text-h3">Balance projection</h2>
-              <div className="mt-4 h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={property.monthly} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                    <defs>
-                      <linearGradient id="netFill" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#00A76F" stopOpacity={0.24} />
-                        <stop offset="100%" stopColor="#00A76F" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="#F4F6F8" strokeDasharray="4 4" />
-                    <XAxis
-                      dataKey="month"
-                      tickFormatter={(m: string) => m.split(" ")[0][0]}
-                      tick={{ fontSize: 11, fill: "#919EAB" }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                    />
-                    <Tooltip
-                      formatter={(v) => [formatCurrency(Number(v)), "Net"]}
-                      contentStyle={{ borderRadius: 12, fontSize: 12, border: "none", boxShadow: "var(--shadow-card)" }}
-                    />
-                    <Area type="monotone" dataKey="netIncome" stroke="#00A76F" strokeWidth={2.5} fill="url(#netFill)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
+        {tab === "Financials" && (() => {
+          // Pre-calculate cumulative revenue for the balance projection line
+          let runningTotal = property.totalEarned - property.monthly.reduce((s, m) => s + m.netIncome, 0);
+          const cumulativeMonthly = property.monthly.map((m) => {
+            runningTotal += m.netIncome;
+            return {
+              ...m,
+              cumulativeRecovered: Math.round(runningTotal),
+            };
+          });
 
-            <Card className="overflow-hidden p-0">
-              <h2 className="text-h3 p-6 pb-0">Income by month</h2>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse text-[14px]">
-                  <thead>
-                    <tr className="bg-grey-200 text-left text-[12px] font-semibold tracking-wide text-grey-600 uppercase">
-                      <th className="px-6 py-3">Month</th>
-                      <th className="px-6 py-3 text-right">Generation</th>
-                      <th className="px-6 py-3 text-right">Tenant charge</th>
-                      <th className="px-6 py-3 text-right">Export credits</th>
-                      <th className="px-6 py-3 text-right">Reserve</th>
-                      <th className="px-6 py-3 text-right">Net</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...property.monthly].reverse().map((m, i, arr) => (
-                      <tr key={m.month} className={cn("h-[60px] border-b border-dashed border-line", i === arr.length - 1 && "border-0")}>
-                        <td className="px-6 font-medium">{m.month}</td>
-                        <td className="px-6 text-right tabular-nums text-grey-600">{m.generationKwh} kWh</td>
-                        <td className="px-6 text-right tabular-nums text-grey-600">{formatCurrency(m.tenantChargeCollected)}</td>
-                        <td className="px-6 text-right tabular-nums text-grey-600">{formatCurrency(m.exportCredits)}</td>
-                        <td className="px-6 text-right tabular-nums text-grey-600">− {formatCurrency(m.reserveContribution)}</td>
-                        <td className="px-6 text-right font-semibold tabular-nums text-success">{formatCurrency(m.netIncome)}</td>
+          const totalGen = property.monthly.reduce((s, m) => s + m.generationKwh, 0);
+          const totalTenant = property.monthly.reduce((s, m) => s + m.tenantChargeCollected, 0);
+          const totalExport = property.monthly.reduce((s, m) => s + m.exportCredits, 0);
+          const totalReserve = property.monthly.reduce((s, m) => s + m.reserveContribution, 0);
+          const totalNet = property.monthly.reduce((s, m) => s + m.netIncome, 0);
+
+          return (
+            <div className="flex flex-col gap-6">
+              {/* Payback & Cashflow Projection Composed Chart */}
+              <Card>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[12px] font-bold tracking-wider text-grey-500 uppercase">
+                      Financial Performance &amp; Payback
+                    </span>
+                    <h3 className="text-h3 mt-0.5 text-grey-900">Cumulative Capital Recovery ($)</h3>
+                  </div>
+                  <span className="rounded-full bg-success-light px-3 py-1 text-xs font-bold text-success-darker">
+                    {Math.round((property.totalEarned / property.totalInvested) * 100)}% Recouped
+                  </span>
+                </div>
+
+                <div className="mt-4 h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={cumulativeMonthly} margin={{ top: 12, right: 12, bottom: 0, left: -16 }}>
+                      <CartesianGrid vertical={false} stroke="#F4F6F8" strokeDasharray="4 4" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: "#919EAB" }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                      <Tooltip
+                        formatter={(v, name) => [
+                          formatCurrency(Number(v)),
+                          name === "netIncome" ? "Monthly Net Payout" : "Cumulative Capital Recovered",
+                        ]}
+                        contentStyle={{ borderRadius: 12, fontSize: 12, border: "none", boxShadow: "var(--shadow-card)" }}
+                      />
+                      <Bar yAxisId="left" dataKey="netIncome" name="netIncome" radius={[4, 4, 0, 0]} fill="#00A76F" />
+                      <Line yAxisId="right" type="monotone" dataKey="cumulativeRecovered" name="cumulativeRecovered" stroke="#FFAB00" strokeWidth={3} dot={{ r: 3 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between border-t border-grey-100 pt-2.5 text-xs text-grey-600 font-semibold">
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#00A76F]" />
+                      <span>Monthly Net Payout ($)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#FFAB00]" />
+                      <span>Cumulative Recovered ($)</span>
+                    </div>
+                  </div>
+                  <span>Payback Progress: ${property.totalEarned.toLocaleString()} / ${property.totalInvested.toLocaleString()}</span>
+                </div>
+              </Card>
+
+              {/* Income Statement Table & CSV Export */}
+              <Card className="overflow-hidden p-0">
+                <div className="p-6 pb-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-[12px] font-bold tracking-wider text-grey-500 uppercase">
+                      Statement Audit Log
+                    </span>
+                    <h3 className="text-h3 mt-0.5 text-grey-900">Income by Month</h3>
+                  </div>
+
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const csvHeader = "Month,Generation (kWh),Tenant Charge ($),Export Credits ($),Reserve ($),Net Payout ($)\n";
+                      const csvRows = property.monthly
+                        .map((m) => `${m.month},${m.generationKwh},${m.tenantChargeCollected},${m.exportCredits},${m.reserveContribution},${m.netIncome}`)
+                        .join("\n");
+                      const blob = new Blob([csvHeader + csvRows], { type: "text/csv" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `sunshare-statements-${property.id}.csv`;
+                      a.click();
+                    }}
+                  >
+                    <Download size={14} />
+                    <span>Export CSV</span>
+                  </Button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[560px] border-collapse text-[14px]">
+                    <thead>
+                      <tr className="bg-grey-100 text-left text-[12px] font-semibold tracking-wide text-grey-600 uppercase border-y border-grey-200">
+                        <th className="px-6 py-3">Month</th>
+                        <th className="px-6 py-3 text-right">Generation</th>
+                        <th className="px-6 py-3 text-right">Tenant Charge</th>
+                        <th className="px-6 py-3 text-right">Export Credits</th>
+                        <th className="px-6 py-3 text-right">Reserve</th>
+                        <th className="px-6 py-3 text-right">Net Payout</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </Card>
-          </div>
-        )}
+                    </thead>
+                    <tbody>
+                      {[...property.monthly].reverse().map((m) => (
+                        <tr key={m.month} className="h-[52px] border-b border-dashed border-line hover:bg-grey-50/50">
+                          <td className="px-6 font-medium text-grey-900">{m.month}</td>
+                          <td className="px-6 text-right tabular-nums text-grey-600">{m.generationKwh} kWh</td>
+                          <td className="px-6 text-right tabular-nums text-grey-600">{formatCurrency(m.tenantChargeCollected)}</td>
+                          <td className="px-6 text-right tabular-nums text-grey-600">{formatCurrency(m.exportCredits)}</td>
+                          <td className="px-6 text-right tabular-nums text-grey-600">− {formatCurrency(m.reserveContribution)}</td>
+                          <td className="px-6 text-right font-bold tabular-nums text-success">{formatCurrency(m.netIncome)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-grey-50 border-t-2 border-grey-300 font-extrabold text-grey-900">
+                        <td className="px-6 py-3.5">Total to Date</td>
+                        <td className="px-6 py-3.5 text-right tabular-nums">{totalGen.toLocaleString()} kWh</td>
+                        <td className="px-6 py-3.5 text-right tabular-nums">{formatCurrency(totalTenant)}</td>
+                        <td className="px-6 py-3.5 text-right tabular-nums">{formatCurrency(totalExport)}</td>
+                        <td className="px-6 py-3.5 text-right tabular-nums">− {formatCurrency(totalReserve)}</td>
+                        <td className="px-6 py-3.5 text-right tabular-nums text-success">{formatCurrency(totalNet)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

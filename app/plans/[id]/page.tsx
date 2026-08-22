@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 import { Check, Download, MessageCircle } from "lucide-react";
 import { notFound, useParams } from "next/navigation";
 import { useState } from "react";
+import { PlanHistoryChart } from "@/components/dashboard/PlanHistoryChart";
+import { EnergyMixDonut } from "@/components/dashboard/EnergyMixDonut";
 
 function formatCurrency(v: number, cents = false) {
   return new Intl.NumberFormat("en-AU", {
@@ -75,6 +77,7 @@ export default function PlanDetailPage() {
       <div className="mt-6">
         {tab === "Overview" && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Capital Repayment Card */}
             <Card className="lg:col-span-12">
               <div className="flex flex-col items-center gap-8 sm:flex-row">
                 <ProgressRing percent={percentRepaid}>
@@ -110,13 +113,48 @@ export default function PlanDetailPage() {
               />
             </Card>
 
+            {/* 12-Month Historical Usage & Savings Chart (Full Width) */}
+            <div className="lg:col-span-12">
+              <PlanHistoryChart monthlyData={tenancy.monthly} />
+            </div>
+
+            {/* Monthly Energy Source Mix (6 Cols) */}
+            <div className="lg:col-span-6">
+              <EnergyMixDonut
+                solarKwh={lastMonth?.solarUsedKwh ?? 210}
+                batteryKwh={110}
+                gridKwh={lastMonth?.gridUsedKwh ?? 195}
+              />
+            </div>
+
+            {/* Itemized Billing Math Card (6 Cols) */}
             {lastMonth && (
-              <Card className="lg:col-span-12">
-                <h2 className="text-h3">This month</h2>
-                <div className="mt-3 grid grid-cols-3 gap-4">
-                  <StatBlock label="Solar used" value={`${lastMonth.solarUsedKwh} kWh`} />
-                  <StatBlock label="Grid used" value={`${lastMonth.gridUsedKwh} kWh`} />
-                  <StatBlock label="Total" value={formatCurrency(lastMonth.chargeDollars, true)} />
+              <Card className="lg:col-span-6 flex flex-col justify-between">
+                <div>
+                  <span className="text-[12px] font-bold tracking-wider text-grey-500 uppercase">
+                    Latest Statement Math
+                  </span>
+                  <h3 className="text-h3 mt-0.5 text-grey-900">{lastMonth.month} Bill Itemization</h3>
+
+                  <div className="mt-4 space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between border-b border-grey-100 pb-2">
+                      <span className="text-grey-600 font-medium">Solar PPA Charge ({lastMonth.solarUsedKwh} kWh @ {tenancy.ratePerKwhCents}¢)</span>
+                      <span className="font-bold text-primary">{formatCurrency(lastMonth.solarUsedKwh * (tenancy.ratePerKwhCents / 100), true)}</span>
+                    </div>
+                    <div className="flex items-center justify-between border-b border-grey-100 pb-2">
+                      <span className="text-grey-600 font-medium">Grid Import Charge ({lastMonth.gridUsedKwh} kWh @ {tenancy.gridRateCents}¢)</span>
+                      <span className="font-bold text-grey-800">{formatCurrency(lastMonth.gridUsedKwh * (tenancy.gridRateCents / 100), true)}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-extrabold text-grey-900 pt-1 text-sm">
+                      <span>Total Bill Paid:</span>
+                      <span>{formatCurrency(lastMonth.chargeDollars, true)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-xl bg-success-light p-3 flex items-center justify-between border border-success-light text-xs font-bold text-success-darker">
+                  <span>Without Solar You&apos;d Pay: {formatCurrency(lastMonth.withoutSolarDollars, true)}</span>
+                  <span className="text-success-darker font-black">+${lastMonth.savingsDollars.toFixed(2)} Saved</span>
                 </div>
               </Card>
             )}
