@@ -7,18 +7,17 @@ import StatChip from "@/components/ui/StatChip";
 import HouseIllustration from "@/components/civic/HouseIllustration";
 import { loadBillFlow } from "@/lib/billFlow";
 import { useDemo } from "@/lib/demo-context";
-import { formatAddress, scenarios } from "@/lib/mockData";
 import { fetchSolarData } from "@/lib/solar/client";
 import { buildManualSolarResult } from "@/lib/solar/manualEstimate";
 import { buildMockSolarResult } from "@/lib/solar/mockFallback";
 import type { SolarApiResponse, SolarResult } from "@/lib/solar/types";
 import { applySolarAlternative } from "@/lib/solar/normalize";
 import { billFlowToPayload } from "@/lib/annualLoad/payload";
-import type { AnnualLoadRequestPayload, MonthlyDemandEstimate } from "@/lib/annualLoad/types";
+import type { MonthlyDemandEstimate } from "@/lib/annualLoad/types";
 import type { InitialAssessment, InitialAssessmentInput } from "@/lib/backend/types";
 import { buildSizingPayload } from "@/lib/sizing/payload";
 import type { SolarSizingResult } from "@/lib/sizing/types";
-import { ChevronDown, Grid2x2, Compass, Layers, Loader2, MapPin } from "lucide-react";
+import { ChevronDown, Grid2x2, Compass, Layers, Loader2, MapPin, Satellite } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -47,6 +46,7 @@ const ORIENTATIONS: { label: string; azimuth: number }[] = [
 ];
 
 type ApiPhase =
+  | { kind: "address" }
   | { kind: "pending" }
   | { kind: "result"; result: SolarResult }
   | { kind: "geocode_failed"; message: string }
@@ -55,7 +55,6 @@ type ApiPhase =
 export default function RoofPage() {
   const router = useRouter();
   const { scenario } = useDemo();
-  const property = scenarios[scenario];
 
   const [loadingStep, setLoadingStep] = useState(0);
   const [minTimerDone, setMinTimerDone] = useState(false);
@@ -66,14 +65,14 @@ export default function RoofPage() {
   const [houseTick, setHouseTick] = useState(0);
   const [houseStart, setHouseStart] = useState(0);
 
-  const [apiPhase, setApiPhase] = useState<ApiPhase>({ kind: "pending" });
+  const [apiPhase, setApiPhase] = useState<ApiPhase>({ kind: "address" });
   // Loading ends only once BOTH the sequence's own minimum pacing has
   // elapsed AND real (or fallback) data has actually arrived — derived
   // directly rather than mirrored into its own state + effect.
-  const loading = !minTimerDone || apiPhase.kind === "pending";
-  const [addressInput, setAddressInput] = useState(() => formatAddress(property.address));
+  const loading = apiPhase.kind === "pending" || (apiPhase.kind === "result" && !minTimerDone);
+  const [addressInput, setAddressInput] = useState("");
+  const [addressError, setAddressError] = useState("");
   const [targetAnnualKwh, setTargetAnnualKwh] = useState<number | undefined>(undefined);
-  const [formData, setFormData] = useState<AnnualLoadRequestPayload | undefined>(undefined);
   const [estimatedAnnualBillDollars, setEstimatedAnnualBillDollars] = useState<number | undefined>(undefined);
   const [ratePerKwhCents, setRatePerKwhCents] = useState<number | undefined>(undefined);
   const [manualArea, setManualArea] = useState("");
@@ -93,6 +92,70 @@ export default function RoofPage() {
       daytimeUsageRatio: 0.4,
       source: "survey_derived",
     }));
+  }
+
+  function resetLookupAnimation() {
+    setLoadingStep(0);
+    setMinTimerDone(false);
+    setOutlineDrawn(false);
+    setPanelsShown(0);
+    setNoteOpen(false);
+    setSizing(null);
+    setSizingError("");
+    setAssessmentError("");
+  }
+
+  async function startRoofLookup() {
+    const rawAddress = addressInput.trim();
+    if (!rawAddress) {
+      setAddressError("Enter the rental property address first.");
+      return;
+    }
+
+    resetLookupAnimation();
+    setAddressError("");
+    setApiPhase({ kind: "pending" });
+
+    try {
+      const addressResponse = await fetch("/api/address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address: rawAddress }),
+      });
+      const addressPayload = (await addressResponse.json()) as { ok: boolean; formattedAddress?: string; message?: string };
+      if (!addressResponse.ok || !addressPayload.ok) {
+        setApiPhase({
+          kind: "geocode_failed",
+          message: addressPayload.message ?? "We couldn't find that address. Check it and try again.",
+        });
+        return;
+      }
+
+      const flow = loadBillFlow();
+      const address = addressPayload.formattedAddress ?? rawAddress;
+      const annualKwh = flow.estimatedAnnualKwh ?? undefined;
+      const fullFormData = { ...billFlowToPayload(flow), address };
+      setAddressInput(address);
+      setTargetAnnualKwh(annualKwh);
+      setEstimatedAnnualBillDollars(flow.estimatedAnnualBillDollars ?? undefined);
+      setRatePerKwhCents(flow.ratePerKwhCents ?? undefined);
+
+      const params = new URLSearchParams(window.location.search);
+      const forceMock = params.get("mock") === "1";
+      const response = await fetchSolarData({
+        address,
+        scenario,
+        targetAnnualKwh: annualKwh,
+        formData: fullFormData,
+        forceMock,
+      });
+      await sizeAndApply(response);
+    } catch (cause) {
+      setApiPhase({
+        kind: "geocode_failed",
+        message: cause instanceof Error ? cause.message : "We couldn't check that address. Try again.",
+      });
+    }
   }
 
   async function sizeAndApply(res: SolarApiResponse) {
@@ -144,44 +207,16 @@ export default function RoofPage() {
     }
   }
 
-  // Kick off the real (or mock) fetch in parallel with the timed loading
-  // sequence below — the sequence's own pacing is untouched either way.
   useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams(window.location.search);
-    const forceMock = params.get("mock") === "1";
-
-    // Prefer the real address + estimated annual usage collected in the
-    // scan/household steps; fall back to the fixed demo scenario when the
-    // user landed here directly (e.g. during dev).
     const flow = loadBillFlow();
-    const address = flow.address || formatAddress(property.address);
+    const address = flow.address || "";
     const annualKwh = flow.estimatedAnnualKwh ?? undefined;
-    // The full form collected across scan + household, so /api/solar isn't
-    // limited to just the derived target number.
-    const fullFormData = { ...billFlowToPayload(flow), address };
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from sessionStorage after mount
     setAddressInput(address);
     setTargetAnnualKwh(annualKwh);
-    setFormData(fullFormData);
     setEstimatedAnnualBillDollars(flow.estimatedAnnualBillDollars ?? undefined);
     setRatePerKwhCents(flow.ratePerKwhCents ?? undefined);
-
-    fetchSolarData({
-      address,
-      scenario,
-      targetAnnualKwh: annualKwh,
-      formData: fullFormData,
-      forceMock,
-    }).then((res) => {
-      if (!cancelled) void sizeAndApply(res);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scenario]);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -195,13 +230,7 @@ export default function RoofPage() {
   }, [scenario, apiPhase.kind]);
 
   function retryGeocode() {
-    setApiPhase({ kind: "pending" });
-    fetchSolarData({
-      address: addressInput,
-      scenario,
-      targetAnnualKwh,
-      formData: formData ? { ...formData, address: addressInput } : undefined,
-    }).then((response) => void sizeAndApply(response));
+    void startRoofLookup();
   }
 
   function submitManualEstimate() {
@@ -333,7 +362,17 @@ export default function RoofPage() {
       <div className="flex w-full flex-1 flex-col pb-8">
         <h1 className="text-h1 mt-4 text-ink">Your roof</h1>
 
-        {loading ? (
+        {apiPhase.kind === "address" ? (
+          <AddressEntryView
+            address={addressInput}
+            error={addressError}
+            onAddressChange={(value) => {
+              setAddressInput(value);
+              if (addressError) setAddressError("");
+            }}
+            onSubmit={startRoofLookup}
+          />
+        ) : loading ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-6 pt-6">
             <div
               key={houseVariant}
@@ -397,8 +436,8 @@ export default function RoofPage() {
             </p>
             {targetAnnualKwh && (
               <p className="text-small mt-1 text-muted">
-                Sized for ~{targetAnnualKwh.toLocaleString()} kWh/year, estimated from your bill and
-                household answers.
+                Sized for ~{targetAnnualKwh.toLocaleString()} kWh/year, estimated from your household
+                profile.
                 {estimatedAnnualBillDollars != null && ratePerKwhCents != null && (
                   <>
                     {" "}
@@ -618,6 +657,59 @@ export default function RoofPage() {
           </Button>
         </BottomCTA>
       )}
+    </div>
+  );
+}
+
+function AddressEntryView({
+  address,
+  error,
+  onAddressChange,
+  onSubmit,
+}: {
+  address: string;
+  error: string;
+  onAddressChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="animate-fade-up flex flex-1 flex-col justify-center pt-6">
+      <div className="rounded-lg border border-line bg-surface p-5 shadow-card">
+        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary-light text-secondary">
+          <Satellite size={24} aria-hidden="true" />
+        </span>
+        <h2 className="text-h2 mt-4 text-ink">Enter the rental address</h2>
+        <p className="text-body mt-2 text-muted">
+          We use the address to find satellite roof data, estimate usable panel space, and check whether solar could work for the property.
+        </p>
+
+        <label htmlFor="property-address" className="mt-5 block">
+          <span className="mb-1.5 block text-[14px] font-semibold text-ink">Property address</span>
+          <input
+            id="property-address"
+            type="text"
+            value={address}
+            onChange={(event) => onAddressChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") onSubmit();
+            }}
+            placeholder="e.g. 12 Corrimal Street, Wollongong NSW 2500"
+            className="w-full rounded-lg border border-line bg-surface-alt px-3.5 py-3 text-[15px] text-ink outline-none focus:border-primary focus:bg-surface"
+            autoComplete="street-address"
+          />
+        </label>
+
+        {error && <p className="text-small mt-2 text-error" role="alert">{error}</p>}
+
+        <Button fullWidth className="mt-4" disabled={!address.trim()} onClick={onSubmit}>
+          <Satellite size={16} aria-hidden="true" />
+          Check satellite roof data
+        </Button>
+
+        <p className="text-small mt-3 text-muted">
+          You do not need to own the property. The landlord proposal comes later if the roof looks viable.
+        </p>
+      </div>
     </div>
   );
 }
