@@ -14,7 +14,8 @@ import { buildMockSolarResult } from "@/lib/solar/mockFallback";
 import type { SolarApiResponse, SolarResult } from "@/lib/solar/types";
 import { billFlowToPayload } from "@/lib/annualLoad/payload";
 import type { AnnualLoadRequestPayload } from "@/lib/annualLoad/types";
-import { ChevronDown, Grid2x2, Compass, Layers, MapPin } from "lucide-react";
+import type { InitialAssessment, InitialAssessmentInput } from "@/lib/backend/types";
+import { ChevronDown, Grid2x2, Compass, Layers, Loader2, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -75,6 +76,8 @@ export default function RoofPage() {
   const [manualArea, setManualArea] = useState("");
   const [manualAzimuth, setManualAzimuth] = useState(0);
   const [manualPitch, setManualPitch] = useState("20");
+  const [assessing, setAssessing] = useState(false);
+  const [assessmentError, setAssessmentError] = useState("");
 
   function applyResponse(res: SolarApiResponse) {
     if (res.ok) {
@@ -160,6 +163,54 @@ export default function RoofPage() {
       scenario
     );
     setApiPhase({ kind: "result", result });
+  }
+
+  async function createAssessment() {
+    if (!result) return;
+    const flow = loadBillFlow();
+    const payload: InitialAssessmentInput = {
+      address: {
+        formattedAddress: result.formattedAddress,
+        latitude: result.center.lat,
+        longitude: result.center.lng,
+      },
+      system: {
+        source: result.source,
+        imageryQuality: result.quality,
+        imageryDate: result.imageryDate,
+        panelCount: result.system.panelCount,
+        panelWatts: result.system.panelWatts,
+        systemSizeKw: result.system.systemSizeKw,
+        expectedAnnualGenerationKwh: result.system.estimatedAnnualAcKwh,
+        roofAreaM2: result.roof.totalAreaM2,
+        usableRoofAreaM2: result.roof.practicalAreaM2,
+      },
+      household: {
+        expectedAnnualUsageKwh: flow.estimatedAnnualKwh ?? targetAnnualKwh ?? 5000,
+        currentAnnualBillDollars: flow.estimatedAnnualBillDollars ?? undefined,
+        gridRateCentsPerKwh: flow.ratePerKwhCents ?? undefined,
+        daytimeOccupancy: flow.homeDuringDay ?? "sometimes",
+      },
+      pricing: { pricingMode: "dynamic" },
+    };
+
+    setAssessing(true);
+    setAssessmentError("");
+    try {
+      const response = await fetch("/api/assessments/initial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const assessment = (await response.json()) as InitialAssessment & { message?: string };
+      if (!response.ok) throw new Error(assessment.message ?? "Could not calculate ROI");
+      window.sessionStorage.setItem("sunshare-latest-assessment-id", assessment.id);
+      router.push(`/results?assessmentId=${encodeURIComponent(assessment.id)}`);
+    } catch (cause) {
+      setAssessmentError(cause instanceof Error ? cause.message : "Could not calculate ROI");
+    } finally {
+      setAssessing(false);
+    }
   }
 
   // Pick a random starting house client-side only, after the first paint,
@@ -468,8 +519,9 @@ export default function RoofPage() {
 
       {!loading && result && (
         <BottomCTA>
-          <Button fullWidth onClick={() => router.push("/results")}>
-            See your numbers
+          {assessmentError && <p className="mb-2 text-small text-error" role="alert">{assessmentError}</p>}
+          <Button fullWidth onClick={createAssessment} disabled={assessing}>
+            {assessing ? <><Loader2 size={16} className="animate-spin" /> Calculating ROI…</> : "See your numbers"}
           </Button>
         </BottomCTA>
       )}

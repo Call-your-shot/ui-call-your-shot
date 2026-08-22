@@ -33,6 +33,8 @@ export default function LeavePlanPage() {
   const [moveOutDate, setMoveOutDate] = useState("");
   const [reason, setReason] = useState(REASONS[0].value);
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   // See the matching guard in plans/[id]/page.tsx for why this waits on
   // `hydrated` before treating a miss as a real 404.
@@ -43,26 +45,39 @@ export default function LeavePlanPage() {
   // derived render state — there's no backend here, so mutating it in place
   // and calling refresh() to force a re-render is the deliberate mechanism
   // (see the `refresh` doc comment in demo-context.tsx).
-  function submit() {
+  async function submit() {
     if (!tenancy || !moveOutDate) return;
-    const today = new Date().toISOString().slice(0, 10);
-    tenancy.status = "leaving";
-    tenancy.leaveRequest = {
-      requestedDate: today,
-      moveOutDate,
-      reason: REASONS.find((r) => r.value === reason)?.label ?? reason,
-      note: note || undefined,
-      status: "pending",
-      timeline: { noticeGiven: today },
-    };
+    setSubmitting(true);
+    setError("");
+    const response = await fetch(`/api/plans/${encodeURIComponent(tenancy.id)}/leave`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        moveOutDate,
+        reason: REASONS.find((item) => item.value === reason)?.label ?? reason,
+        note: note || undefined,
+      }),
+    });
+    const payload = await response.json();
+    setSubmitting(false);
+    if (!response.ok) {
+      setError(payload.message ?? "Could not submit leave request");
+      return;
+    }
     refresh();
     setStep(4);
   }
 
-  function withdraw() {
+  async function withdraw() {
     if (!tenancy) return;
-    tenancy.status = "active";
-    tenancy.leaveRequest = undefined;
+    setSubmitting(true);
+    const response = await fetch(`/api/plans/${encodeURIComponent(tenancy.id)}/leave`, { method: "DELETE" });
+    setSubmitting(false);
+    if (!response.ok) {
+      const payload = await response.json();
+      setError(payload.message ?? "Could not withdraw leave request");
+      return;
+    }
     refresh();
     router.push(`/plans/${tenancy.id}`);
   }
@@ -70,6 +85,7 @@ export default function LeavePlanPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <h1 className="text-h1">Leave {formatPropertyAddress(tenancy.address)}</h1>
+      {error && <p className="mt-3 rounded-lg bg-error-light p-3 text-small text-error" role="alert">{error}</p>}
 
       {step === 1 && (
         <div className="mt-6 flex flex-col gap-6">
@@ -92,7 +108,7 @@ export default function LeavePlanPage() {
             <Button href={`/plans/${tenancy.id}`} variant="secondary" fullWidth>
               Cancel
             </Button>
-            <Button fullWidth onClick={() => setStep(2)}>
+            <Button fullWidth onClick={() => setStep(2)} disabled={submitting}>
               Continue
             </Button>
           </div>
@@ -174,13 +190,8 @@ export default function LeavePlanPage() {
             <Button variant="secondary" fullWidth onClick={() => setStep(2)}>
               Back
             </Button>
-            {/* `submit` mutates the mock tenancy record in place and calls
-                refresh() to force a re-render — deliberate, since there's no
-                backend here (see the `refresh` doc comment in
-                demo-context.tsx). */}
-            {/* eslint-disable-next-line react-hooks/immutability */}
-            <Button fullWidth onClick={submit}>
-              Submit notice
+            <Button fullWidth onClick={submit} disabled={submitting}>
+              {submitting ? "Submitting…" : "Submit notice"}
             </Button>
           </div>
         </div>
@@ -215,9 +226,8 @@ export default function LeavePlanPage() {
           </Card>
 
           {tenancy.leaveRequest.status === "pending" && (
-              // eslint-disable-next-line react-hooks/immutability
-              <Button variant="secondary" onClick={withdraw}>
-                Withdraw notice
+              <Button variant="secondary" onClick={withdraw} disabled={submitting}>
+                {submitting ? "Withdrawing…" : "Withdraw notice"}
               </Button>
             )}
         </div>

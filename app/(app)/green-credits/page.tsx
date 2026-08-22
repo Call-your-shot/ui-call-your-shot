@@ -5,10 +5,6 @@ import Card from "@/components/ui/Card";
 import { useDemo } from "@/lib/demo-context";
 import {
   allocateGreenCredits,
-  getGreenCreditActivity,
-  getGreenCreditDashboardSummary,
-  getGreenCreditWallet,
-  greenProjects,
   sponsorFundingForCredits,
   type GreenCreditActivity,
   type GreenProject,
@@ -56,18 +52,12 @@ export default function GreenCreditsPage() {
 }
 
 function GreenCreditsExperience({ accountId }: { accountId: string }) {
-  const wallet = getGreenCreditWallet(accountId);
-  const dashboardSummary = getGreenCreditDashboardSummary(wallet);
-  const [availableCredits, setAvailableCredits] = useState(
-    dashboardSummary.currentBalance
-  );
-  const [impactCreditsInvested, setImpactCreditsInvested] = useState(
-    dashboardSummary.impactCreditsInvested
-  );
-  const [projects, setProjects] = useState(() => greenProjects.map((project) => ({ ...project })));
-  const [activities, setActivities] = useState<GreenCreditActivity[]>(() =>
-    getGreenCreditActivity(accountId).map((activity) => ({ ...activity }))
-  );
+  const [availableCredits, setAvailableCredits] = useState(0);
+  const [impactCreditsInvested, setImpactCreditsInvested] = useState(0);
+  const [projects, setProjects] = useState<GreenProject[]>([]);
+  const [activities, setActivities] = useState<GreenCreditActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [success, setSuccess] = useState<{
     projectTitle: string;
@@ -75,47 +65,80 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
     sponsorDollars: number;
   } | null>(null);
 
-  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
-  function completeAllocation(project: GreenProject, requestedCredits: number) {
-    const result = allocateGreenCredits({
-      requestedCredits,
-      availableCredits,
-      projectRemainingCredits: project.targetCredits - project.directedCredits,
-      creditsPerSponsorDollar: project.creditsPerSponsorDollar,
-    });
+  async function loadCredits() {
+    setLoadError("");
+    try {
+      const response = await fetch("/api/green-credits", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Could not load green credits");
+      setAvailableCredits(Number(payload.wallet.available_credits));
+      setImpactCreditsInvested(Number(payload.wallet.lifetime_allocated_credits));
+      setProjects(payload.projects.data.map((project: Record<string, unknown>) => {
+        const metadata = (project.metadata ?? {}) as Record<string, unknown>;
+        return {
+          id: String(project.id),
+          category: String(project.category) as GreenProjectCategory,
+          title: String(project.title),
+          description: String(project.description),
+          location: String(project.location ?? "Australia"),
+          targetCredits: Number(project.target_credits),
+          directedCredits: Number(project.funded_credits),
+          sponsorName: String(metadata.sponsor_name ?? "Community sponsor"),
+          sponsorCommitmentDollars: Number(metadata.sponsor_commitment_dollars ?? 0),
+          creditsPerSponsorDollar: Number(metadata.credits_per_sponsor_dollar ?? 100),
+          impactLabel: `${project.expected_impact ?? "Verified"} ${project.impact_unit ?? "impact"}`,
+          verificationMethod: String(project.verification_method),
+        } satisfies GreenProject;
+      }));
+      setActivities(payload.ledger.data.map((entry: Record<string, unknown>) => ({
+        id: String(entry.id),
+        type: entry.entry_type === "allocate" ? "allocated" : "earned",
+        title: entry.entry_type === "allocate" ? "Credits allocated" : "Credits earned",
+        detail: String(entry.description),
+        date: new Date(String(entry.occurred_at)).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" }),
+        credits: Number(entry.amount_credits),
+      } satisfies GreenCreditActivity)));
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : "Could not load green credits");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-    setAvailableCredits(result.remainingWalletCredits);
-    setImpactCreditsInvested(
-      (current) => current + result.allocatedCredits
-    );
-    setProjects((current) =>
-      current.map((item) =>
-        item.id === project.id
-          ? { ...item, directedCredits: item.directedCredits + result.allocatedCredits }
-          : item
-      )
-    );
-    setActivities((current) => [
-      {
-        id: `allocation-${project.id}-${current.length}`,
-        type: "allocated",
-        title: `Supported ${project.title}`,
-        detail: `${currencyFormatter.format(result.sponsorFundingUnlockedDollars)} of sponsor funding unlocked`,
-        date: "Today",
-        credits: -result.allocatedCredits,
-      },
-      ...current,
-    ]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- account changes require reloading the external backend wallet
+    void loadCredits();
+    // accountId changes only when the authenticated demo session changes.
+  }, [accountId]);
+
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
+  async function completeAllocation(project: GreenProject, requestedCredits: number) {
+    const response = await fetch("/api/green-credits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, requestedCredits }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      setLoadError(result.message ?? "Could not allocate credits");
+      return;
+    }
+    const allocatedCredits = Number(result.allocated_credits);
+    const sponsorFundingUnlockedDollars = sponsorFundingForCredits(allocatedCredits, project.creditsPerSponsorDollar);
+    await loadCredits();
     setSelectedProjectId(null);
     setSuccess({
       projectTitle: project.title,
-      credits: result.allocatedCredits,
-      sponsorDollars: result.sponsorFundingUnlockedDollars,
+      credits: allocatedCredits,
+      sponsorDollars: sponsorFundingUnlockedDollars,
     });
   }
 
+  if (loading) return <p className="text-body text-muted">Loading green credits…</p>;
+
   return (
     <div>
+      {loadError && <p className="mb-4 rounded-lg bg-error-light p-3 text-small text-error" role="alert">{loadError}</p>}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-h1">Green credits</h1>

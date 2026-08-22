@@ -2,7 +2,6 @@
 
 import Button from "@/components/ui/Button";
 import Logo from "@/components/civic/Logo";
-import { setSignedInEmail } from "@/lib/session";
 import type { SignInApiResponse } from "@/app/api/signin/route";
 import { Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -12,23 +11,31 @@ export default function SignInPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
 
-  async function handleContinue() {
-    if (!email) return;
+  async function signIn(targetEmail: string) {
+    if (!targetEmail) return;
     setSending(true);
+    setError("");
     try {
       const res = await fetch("/api/signin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: targetEmail }),
       });
       const data = (await res.json()) as SignInApiResponse;
-      setSignedInEmail(data.email ?? email);
-    } catch {
-      // Demo auth never blocks on a network hiccup — still let them in.
-      setSignedInEmail(email);
+      if (!res.ok || !data.ok) throw new Error(data.message ?? "Sign in failed");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Sign in failed");
+    } finally {
+      setSending(false);
     }
-    router.push("/dashboard");
+  }
+
+  async function handleContinue() {
+    await signIn(email);
   }
 
   return (
@@ -64,11 +71,13 @@ export default function SignInPage() {
         </Button>
         <button
           type="button"
-          onClick={() => router.push("/dashboard")}
+          onClick={() => signIn("priya.nair@example.com")}
+          disabled={sending}
           className="py-2 text-center text-small font-medium text-primary underline underline-offset-2"
         >
           Skip — demo mode
         </button>
+        {error && <p className="text-small text-error" role="alert">{error}</p>}
       </div>
     </div>
   );

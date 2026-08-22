@@ -5,7 +5,6 @@ import Card from "@/components/ui/Card";
 import { useDemo } from "@/lib/demo-context";
 import { fetchSolarData } from "@/lib/solar/client";
 import type { SolarResult } from "@/lib/solar/types";
-import type { OwnedProperty } from "@/lib/accounts";
 import { Check, Loader2, Mail, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -34,49 +33,23 @@ export default function AddPropertyPage() {
     setStep("system");
   }
 
-  function createProperty(withInviteEmail?: string) {
-    const id = `prop-new-${Date.now()}`;
-    const newProperty: OwnedProperty = {
-      id,
-      address: {
-        street: address.split(",")[0] || address,
-        suburb: solarResult?.formattedAddress.split(",")[1]?.trim() ?? "",
-        state: "NSW",
-        postcode: "",
-      },
-      imageVariant: Math.floor(Math.random() * 6),
-      occupancyStatus: withInviteEmail ? "pending_invitation" : "vacant",
-      system: solarResult
-        ? {
-            sizeKw: solarResult.system.systemSizeKw,
-            panelCount: solarResult.system.panelCount,
-            installDate: new Date().toISOString().slice(0, 10),
-            inverterModel: "To be confirmed at installation",
-            warrantyExpiry: "",
-            status: "normal",
-            todayGenerationKwh: 0,
-            currentOutputKw: 0,
-            performancePercent: 100,
-            lastReadingAt: new Date().toISOString(),
-            dailyOutputKwh30d: [],
-            serviceHistory: [],
-          }
-        : undefined,
-      tenantHistory: [],
-      monthlyIncome: 0,
-      balanceOutstanding: solarResult ? solarResult.system.estimatedAnnualAcKwh * 0.15 * 6.7 : 0,
-      balanceTotal: solarResult ? solarResult.system.estimatedAnnualAcKwh * 0.15 * 6.7 : 0,
-      totalEarned: 0,
-      totalInvested: solarResult ? solarResult.system.estimatedAnnualAcKwh * 0.15 * 6.7 : 0,
-      monthly: [],
-      maintenanceReserve: { accrued: 0, nextCostDescription: "First inspection", nextCostDate: "", nextCostEstimate: 150 },
-      pendingInvitationEmail: withInviteEmail,
-    };
-    // Mutating the mock account store in place — see the `refresh` doc
-    // comment in demo-context.tsx for why.
-    account.ownedProperties.push(newProperty);
+  async function createProperty(withInviteEmail?: string) {
+    const response = await fetch("/api/properties", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        address: solarResult?.formattedAddress ?? address,
+        inviteEmail: withInviteEmail,
+        solarSystem: solarResult ? {
+          systemSizeKw: solarResult.system.systemSizeKw,
+          panelCount: solarResult.system.panelCount,
+        } : undefined,
+      }),
+    });
+    const created = await response.json();
+    if (!response.ok) return;
     refresh();
-    setNewPropertyId(id);
+    setNewPropertyId(created.id);
     setStep("done");
   }
 

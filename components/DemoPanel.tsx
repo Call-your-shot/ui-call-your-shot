@@ -1,7 +1,7 @@
 "use client";
 
 import { useDemo } from "@/lib/demo-context";
-import { mockAccounts } from "@/lib/accounts";
+import { demoAccounts } from "@/lib/demo-context";
 import { cn } from "@/lib/utils";
 import { Settings2, X } from "lucide-react";
 import Link from "next/link";
@@ -77,7 +77,7 @@ export default function DemoPanel() {
             Demo account
           </p>
           <div className="flex flex-col gap-2">
-            {Object.values(mockAccounts).map((acc) => (
+            {demoAccounts.map((acc) => (
               <button
                 key={acc.id}
                 onClick={() => setAccountId(acc.id)}

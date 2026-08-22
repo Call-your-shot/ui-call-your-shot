@@ -37,6 +37,7 @@ export default function PropertyDetailPage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [generationView, setGenerationView] = useState<"daily" | "monthly">("daily");
+  const [actionError, setActionError] = useState("");
 
   // See the matching guard in plans/[id]/page.tsx for why this waits on
   // `hydrated` before treating a miss as a real 404.
@@ -46,18 +47,32 @@ export default function PropertyDetailPage() {
   const percentRecovered =
     property.totalInvested > 0 ? Math.round((property.totalEarned / property.totalInvested) * 100) : 0;
 
-  function sendInvite() {
+  async function sendInvite() {
     if (!property || !inviteEmail.trim()) return;
-    property.pendingInvitationEmail = inviteEmail.trim();
-    property.occupancyStatus = "pending_invitation";
+    setActionError("");
+    const response = await fetch(`/api/properties/${encodeURIComponent(property.id)}/invite`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ inviteEmail: inviteEmail.trim() }),
+    });
+    if (!response.ok) {
+      const payload = await response.json();
+      setActionError(payload.message ?? "Could not send invitation");
+      return;
+    }
     refresh();
     setInviteOpen(false);
     setInviteEmail("");
   }
 
-  function acknowledgeLeaveRequest() {
+  async function acknowledgeLeaveRequest() {
     if (!property?.leaveRequest) return;
-    property.leaveRequest.status = "acknowledged";
+    const response = await fetch(`/api/properties/${encodeURIComponent(property.id)}/leave-request/acknowledge`, { method: "POST" });
+    if (!response.ok) {
+      const payload = await response.json();
+      setActionError(payload.message ?? "Could not acknowledge leave request");
+      return;
+    }
     refresh();
   }
 
@@ -67,6 +82,7 @@ export default function PropertyDetailPage() {
       <p className="text-body mt-1">
         {property.currentTenant ? `Leased to ${property.currentTenant.name}` : "Not currently tenanted"}
       </p>
+      {actionError && <p className="mt-3 rounded-lg bg-error-light p-3 text-small text-error" role="alert">{actionError}</p>}
 
       <div className="mt-6 flex gap-2 overflow-x-auto border-b border-line">
         {TABS.map((t) => (
@@ -190,7 +206,6 @@ export default function PropertyDetailPage() {
                       className="w-full bg-transparent text-[14px] outline-none"
                     />
                   </div>
-                  {/* eslint-disable-next-line react-hooks/immutability -- sendInvite deliberately mutates the mock account store in place; see demo-context.tsx's `refresh` doc comment */}
                   <Button className="mt-3" disabled={!inviteEmail.trim()} onClick={sendInvite}>
                     Send invitation
                   </Button>
@@ -223,7 +238,6 @@ export default function PropertyDetailPage() {
 
                 {property.leaveRequest.status === "pending" ? (
                   <div className="mt-4 flex gap-3">
-                    {/* eslint-disable-next-line react-hooks/immutability -- deliberate mock-store mutation, see demo-context.tsx's `refresh` doc comment */}
                     <Button onClick={acknowledgeLeaveRequest}>Acknowledge</Button>
                     <Button variant="secondary">
                       <MessageCircle size={16} aria-hidden="true" />

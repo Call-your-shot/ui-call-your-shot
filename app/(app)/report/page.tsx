@@ -6,7 +6,7 @@ import { useDemo } from "@/lib/demo-context";
 import { formatPropertyAddress, isLandlord, isTenant } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
 import { Check, Paperclip } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const tenantCategories = [
   { value: "billing", label: "Billing dispute" },
@@ -57,28 +57,50 @@ export default function ReportIssuePage() {
   const [description, setDescription] = useState("");
   const [contactPreference, setContactPreference] = useState<"email" | "phone">("email");
   const [fileName, setFileName] = useState<string | null>(null);
-  const [pastReports, setPastReports] = useState<PastReport[]>([
-    {
-      id: "r1",
-      reference: "SR-2026-0142",
-      category: "Reading looks wrong",
-      property: properties[0]?.label ?? "",
-      status: "Resolved",
-      submittedAt: "2026-06-02",
-    },
-  ]);
+  const [pastReports, setPastReports] = useState<PastReport[]>([]);
   const [submittedRef, setSubmittedRef] = useState<string | null>(null);
+  const [error, setError] = useState("");
 
-  function submit() {
+  useEffect(() => {
+    fetch("/api/reports", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message ?? "Could not load reports");
+        setPastReports(payload.data.map((report: PastReport & { propertyId?: string }) => ({
+          ...report,
+          property: properties.find((property) => property.id === report.propertyId)?.label ?? "—",
+        })));
+      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load reports"));
+    // Properties are supplied by the authenticated account snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [account.id]);
+
+  async function submit() {
     if (!description.trim()) return;
-    const reference = `SR-2026-${Math.floor(1000 + Math.random() * 9000)}`;
     const categoryLabel = categories.find((c) => c.value === category)?.label ?? category;
     const propertyLabel = properties.find((p) => p.id === propertyId)?.label ?? "—";
+    const response = await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        propertyId: propertyId || undefined,
+        category: categoryLabel,
+        description,
+        contactPreference,
+        attachmentName: fileName,
+      }),
+    });
+    const report = await response.json();
+    if (!response.ok) {
+      setError(report.message ?? "Could not submit report");
+      return;
+    }
     setPastReports((prev) => [
-      { id: reference, reference, category: categoryLabel, property: propertyLabel, status: "Open", submittedAt: new Date().toISOString().slice(0, 10) },
+      { ...report, property: propertyLabel } as PastReport,
       ...prev,
     ]);
-    setSubmittedRef(reference);
+    setSubmittedRef(report.reference);
     setDescription("");
     setFileName(null);
   }
@@ -87,6 +109,7 @@ export default function ReportIssuePage() {
     <div className="mx-auto max-w-2xl">
       <h1 className="text-h1">Report an issue</h1>
       <p className="text-body mt-1">Tell us what&apos;s wrong and we&apos;ll get on it.</p>
+      {error && <p className="mt-3 rounded-lg bg-error-light p-3 text-small text-error" role="alert">{error}</p>}
 
       {submittedRef ? (
         <Card className="mt-6 flex flex-col items-center gap-3 py-10 text-center">

@@ -6,7 +6,8 @@ import { useDemo } from "@/lib/demo-context";
 import { formatPropertyAddress } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
 import { CreditCard, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const notificationOptions = [
   { id: "statement-ready", label: "Statement ready", description: "When your new monthly statement is available." },
@@ -16,6 +17,7 @@ const notificationOptions = [
 
 export default function SettingsPage() {
   const { account } = useDemo();
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Record<string, boolean>>({
     "statement-ready": true,
     "output-alerts": true,
@@ -24,6 +26,35 @@ export default function SettingsPage() {
   const [language, setLanguage] = useState("en-AU");
   const [largeText, setLargeText] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    fetch("/api/settings", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.message ?? "Could not load settings");
+        setNotifications(payload.notifications);
+        setLanguage(payload.language);
+        setLargeText(payload.largeText);
+        setReduceMotion(payload.reduceMotion);
+      })
+      .catch(() => setSaveMessage("Settings could not be loaded."));
+  }, []);
+
+  async function saveSettings() {
+    const response = await fetch("/api/settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notifications, language, largeText, reduceMotion }),
+    });
+    setSaveMessage(response.ok ? "Settings saved." : "Settings could not be saved.");
+  }
+
+  async function signOut() {
+    await fetch("/api/session", { method: "DELETE" });
+    router.push("/signin");
+    router.refresh();
+  }
 
   const linkedProperties = [
     ...account.tenancies.map((t) => ({
@@ -47,9 +78,9 @@ export default function SettingsPage() {
         <Card className="lg:col-span-6">
           <h2 className="text-h3">Profile</h2>
           <div className="mt-4 flex flex-col gap-4">
-            <Field label="Full name" defaultValue={account.name} />
-            <Field label="Email" defaultValue={account.email} type="email" />
-            <Field label="Phone" defaultValue="0412 345 678" type="tel" />
+            <Field label="Full name" defaultValue={account.name} readOnly />
+            <Field label="Email" defaultValue={account.email} type="email" readOnly />
+            <Field label="Phone" defaultValue="" type="tel" placeholder="Not provided" readOnly />
           </div>
         </Card>
 
@@ -102,11 +133,11 @@ export default function SettingsPage() {
           <div className="mt-4 flex items-center gap-3 rounded-lg bg-grey-200 p-3">
             <CreditCard size={20} className="text-grey-600" aria-hidden="true" />
             <div>
-              <p className="text-[14px] font-semibold text-grey-900">Visa ending 4242</p>
-              <p className="text-small">Expires 08/28</p>
+              <p className="text-[14px] font-semibold text-grey-900">No payment method connected</p>
+              <p className="text-small">Payment integration is not part of the current backend.</p>
             </div>
           </div>
-          <Button variant="secondary" className="mt-3">
+          <Button variant="secondary" className="mt-3" disabled>
             Update payment method
           </Button>
         </Card>
@@ -133,7 +164,11 @@ export default function SettingsPage() {
         </Card>
 
         <div className="lg:col-span-12">
-          <Button variant="danger">
+          <div className="mb-4 flex items-center gap-3">
+            <Button onClick={saveSettings}>Save settings</Button>
+            {saveMessage && <span className="text-small text-muted" role="status">{saveMessage}</span>}
+          </div>
+          <Button variant="danger" onClick={signOut}>
             <LogOut size={16} aria-hidden="true" />
             Sign out
           </Button>
@@ -147,10 +182,14 @@ function Field({
   label,
   defaultValue,
   type = "text",
+  placeholder,
+  readOnly = false,
 }: {
   label: string;
   defaultValue: string;
   type?: string;
+  placeholder?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label className="block">
@@ -158,6 +197,8 @@ function Field({
       <input
         type={type}
         defaultValue={defaultValue}
+        placeholder={placeholder}
+        readOnly={readOnly}
         className="w-full rounded-lg border border-line bg-surface-alt px-3 py-2.5 text-[15px] text-grey-900 outline-none focus:border-primary focus:bg-surface"
       />
     </label>
