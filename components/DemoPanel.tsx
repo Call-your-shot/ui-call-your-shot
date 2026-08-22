@@ -18,6 +18,7 @@ const jumpLinks: { label: string; href: string }[] = [
   { label: "My properties", href: "/properties" },
   { label: "Savings history", href: "/savings" },
   { label: "Income history", href: "/income" },
+  { label: "Green credits", href: "/green-credits" },
   { label: "Report an issue", href: "/report" },
   { label: "Settings", href: "/settings" },
 ];

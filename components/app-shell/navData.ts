@@ -2,6 +2,7 @@ import {
   Building2,
   Flag,
   LayoutDashboard,
+  Leaf,
   LucideIcon,
   Settings,
   TrendingUp,
@@ -54,6 +55,16 @@ export function getNavGroups(account: Account): NavGroup[] {
       items: [
         { label: "Savings history", href: "/savings", icon: TrendingUp, empty: planCount === 0 },
         { label: "Income history", href: "/income", icon: TrendingUp, empty: propertyCount === 0 },
+      ],
+    },
+    {
+      label: "Impact",
+      items: [
+        {
+          label: "Green credits",
+          href: "/green-credits",
+          icon: Leaf,
+        },
       ],
     },
   ];

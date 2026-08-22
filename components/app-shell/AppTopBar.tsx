@@ -24,6 +24,7 @@ function getPageMeta(pathname: string): PageMeta {
   if (pathname.startsWith("/proposal/")) return { title: "Proposal document", breadcrumb: "My plans" };
   if (pathname.startsWith("/savings")) return { title: "Savings history" };
   if (pathname.startsWith("/income")) return { title: "Income history" };
+  if (pathname.startsWith("/green-credits")) return { title: "Green credits" };
   if (pathname.startsWith("/report")) return { title: "Report an issue" };
   if (pathname.startsWith("/settings")) return { title: "Settings" };
   return { title: "Dashboard" };
