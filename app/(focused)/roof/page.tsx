@@ -12,9 +12,12 @@ import { fetchSolarData } from "@/lib/solar/client";
 import { buildManualSolarResult } from "@/lib/solar/manualEstimate";
 import { buildMockSolarResult } from "@/lib/solar/mockFallback";
 import type { SolarApiResponse, SolarResult } from "@/lib/solar/types";
+import { applySolarAlternative } from "@/lib/solar/normalize";
 import { billFlowToPayload } from "@/lib/annualLoad/payload";
-import type { AnnualLoadRequestPayload } from "@/lib/annualLoad/types";
+import type { AnnualLoadRequestPayload, MonthlyDemandEstimate } from "@/lib/annualLoad/types";
 import type { InitialAssessment, InitialAssessmentInput } from "@/lib/backend/types";
+import { buildSizingPayload } from "@/lib/sizing/payload";
+import type { SolarSizingResult } from "@/lib/sizing/types";
 import { ChevronDown, Grid2x2, Compass, Layers, Loader2, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -78,6 +81,55 @@ export default function RoofPage() {
   const [manualPitch, setManualPitch] = useState("20");
   const [assessing, setAssessing] = useState(false);
   const [assessmentError, setAssessmentError] = useState("");
+  const [sizing, setSizing] = useState<SolarSizingResult | null>(null);
+  const [sizingError, setSizingError] = useState("");
+
+  function fallbackMonthlyDemand(annualKwh: number): MonthlyDemandEstimate[] {
+    const weights = [0.09, 0.08, 0.075, 0.07, 0.075, 0.09, 0.10, 0.095, 0.075, 0.07, 0.08, 0.10];
+    return weights.map((weight, index) => ({
+      calendarMonth: index + 1,
+      monthName: new Date(2025, index, 1).toLocaleString("en-AU", { month: "long" }),
+      usageKwh: annualKwh * weight,
+      daytimeUsageRatio: 0.4,
+      source: "survey_derived",
+    }));
+  }
+
+  async function sizeAndApply(res: SolarApiResponse) {
+    if (!res.ok && res.code !== "API_ERROR") {
+      applyResponse(res);
+      return;
+    }
+    const rawResult = res.ok ? res.result : res.fallback ?? buildMockSolarResult(scenario);
+    const flow = loadBillFlow();
+    const annualUsage = flow.estimatedAnnualKwh ?? targetAnnualKwh ?? 5_000;
+    const monthlyDemand = flow.monthlyUsage.length === 12
+      ? flow.monthlyUsage
+      : fallbackMonthlyDemand(annualUsage);
+    setSizingError("");
+    try {
+      const response = await fetch("/api/solar-sizing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSizingPayload(
+          rawResult,
+          monthlyDemand,
+          flow.homeDuringDay ?? "sometimes",
+          flow.ratePerKwhCents ?? 35.69,
+        )),
+      });
+      const recommendation = await response.json() as SolarSizingResult & { message?: string };
+      if (!response.ok) throw new Error(recommendation.message ?? "Could not optimise panel count");
+      const candidate = rawResult.alternatives.find(
+        (option) => option.candidateId === recommendation.recommendedCandidateId,
+      );
+      setSizing(recommendation);
+      setApiPhase({ kind: "result", result: candidate ? applySolarAlternative(rawResult, candidate) : rawResult });
+    } catch (cause) {
+      setSizingError(cause instanceof Error ? cause.message : "Could not optimise panel count");
+      setApiPhase({ kind: "result", result: rawResult });
+    }
+  }
 
   function applyResponse(res: SolarApiResponse) {
     if (res.ok) {
@@ -122,7 +174,7 @@ export default function RoofPage() {
       formData: fullFormData,
       forceMock,
     }).then((res) => {
-      if (!cancelled) applyResponse(res);
+      if (!cancelled) void sizeAndApply(res);
     });
 
     return () => {
@@ -133,12 +185,14 @@ export default function RoofPage() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      setApiPhase((prev) =>
-        prev.kind === "pending" ? { kind: "result", result: buildMockSolarResult(scenario) } : prev
-      );
+      if (apiPhase.kind === "pending") {
+        void sizeAndApply({ ok: true, result: buildMockSolarResult(scenario) });
+      }
     }, SAFETY_TIMEOUT_MS);
     return () => clearTimeout(t);
-  }, [scenario]);
+    // The safety timer is intentionally tied only to the request lifecycle.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario, apiPhase.kind]);
 
   function retryGeocode() {
     setApiPhase({ kind: "pending" });
@@ -147,7 +201,7 @@ export default function RoofPage() {
       scenario,
       targetAnnualKwh,
       formData: formData ? { ...formData, address: addressInput } : undefined,
-    }).then(applyResponse);
+    }).then((response) => void sizeAndApply(response));
   }
 
   function submitManualEstimate() {
@@ -162,7 +216,8 @@ export default function RoofPage() {
       },
       scenario
     );
-    setApiPhase({ kind: "result", result });
+    setApiPhase({ kind: "pending" });
+    void sizeAndApply({ ok: true, result });
   }
 
   async function createAssessment() {
@@ -190,8 +245,18 @@ export default function RoofPage() {
         currentAnnualBillDollars: flow.estimatedAnnualBillDollars ?? undefined,
         gridRateCentsPerKwh: flow.ratePerKwhCents ?? undefined,
         daytimeOccupancy: flow.homeDuringDay ?? "sometimes",
+        monthlyUsageKwh: flow.monthlyUsage.length === 12
+          ? flow.monthlyUsage.sort((a, b) => a.calendarMonth - b.calendarMonth).map((item) => item.usageKwh)
+          : undefined,
       },
       pricing: { pricingMode: "dynamic" },
+      sizing: sizing?.recommendedCandidateId ? {
+        recommendedCandidateId: sizing.recommendedCandidateId,
+        recommendedPanelCount: sizing.recommendedPanelCount ?? result.system.panelCount,
+        roofMaximumPanelCount: sizing.roofMaximumPanelCount,
+        selectionMethod: sizing.selectionMethod,
+        recommendationReason: sizing.recommendationReason,
+      } : undefined,
     };
 
     setAssessing(true);
@@ -448,6 +513,34 @@ export default function RoofPage() {
               />
             </div>
 
+            {sizing && (
+              <div className="mt-4 rounded-lg border border-primary-light bg-secondary-light p-4">
+                <p className="text-[14px] font-semibold text-primary-dark">Demand-matched recommendation</p>
+                <p className="text-small mt-1 text-ink">{sizing.recommendationReason}</p>
+                <p className="text-small mt-2 text-muted">
+                  Your roof can physically fit up to {sizing.roofMaximumPanelCount} panels. We recommend {sizing.recommendedPanelCount} after testing monthly demand, exports, tenant savings and payback.
+                </p>
+              </div>
+            )}
+
+            {sizingError && (
+              <div className="mt-3">
+                <Callout variant="warning">
+                  Panel optimisation is unavailable: {sizingError}. The displayed system is the annual-usage fallback.
+                  <Button
+                    variant="secondary"
+                    className="mt-3"
+                    onClick={() => {
+                      setApiPhase({ kind: "pending" });
+                      void sizeAndApply({ ok: true, result });
+                    }}
+                  >
+                    Retry panel optimisation
+                  </Button>
+                </Callout>
+              </div>
+            )}
+
             {result.source === "mock" && (
               <span className="mt-3 inline-flex items-center rounded-full bg-grey-200 px-3 py-1 text-[12px] font-semibold text-grey-600">
                 Demonstration data
@@ -520,7 +613,7 @@ export default function RoofPage() {
       {!loading && result && (
         <BottomCTA>
           {assessmentError && <p className="mb-2 text-small text-error" role="alert">{assessmentError}</p>}
-          <Button fullWidth onClick={createAssessment} disabled={assessing}>
+          <Button fullWidth onClick={createAssessment} disabled={assessing || !!sizingError}>
             {assessing ? <><Loader2 size={16} className="animate-spin" /> Calculating ROI…</> : "See your numbers"}
           </Button>
         </BottomCTA>

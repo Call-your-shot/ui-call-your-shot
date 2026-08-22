@@ -89,13 +89,15 @@ export interface SolarPanelOverlay {
 }
 
 export interface SolarAlternative {
+  candidateId: string;
   panelCount: number;
   systemSizeKw: number;
   annualKwh: number;
+  segmentBreakdown?: Array<{ segmentIndex: number; panelsCount: number; annualKwh: number }>;
 }
 
 export interface SolarResult {
-  source: "google" | "mock";
+  source: "google" | "manual" | "mock";
   quality: ImageryQuality;
   imageryDate: string;
   imageryAgeYears: number;

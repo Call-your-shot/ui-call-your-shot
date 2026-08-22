@@ -20,12 +20,13 @@ export function buildManualSolarResult(
   const panelFootprint = PANEL_HEIGHT_M * PANEL_WIDTH_M;
   // Manual estimates can't know real obstructions/setbacks, so only credit
   // ~70% of the entered area as actually panel-able.
-  const panelCount = Math.max(0, Math.floor((input.areaM2 * 0.7) / panelFootprint));
+  const roofMaximumPanelCount = Math.max(1, Math.floor((input.areaM2 * 0.7) / panelFootprint));
+  const panelCount = roofMaximumPanelCount;
   const systemSizeKw = Math.round(((panelCount * PANEL_WATTS) / 1000) * 10) / 10;
   const estimatedAnnualAcKwh = Math.round(systemSizeKw * KWH_PER_KW_PER_YEAR);
 
   return {
-    source: "mock",
+    source: "manual",
     quality: "BASE",
     imageryDate: "Manual estimate",
     imageryAgeYears: 0,
@@ -58,7 +59,14 @@ export function buildManualSolarResult(
     },
 
     panels: [],
-    alternatives: [],
+    alternatives: Array.from({ length: roofMaximumPanelCount }, (_, index) => index + 1)
+      .filter((count) => count === 1 || count === roofMaximumPanelCount || count % 2 === 0)
+      .map((count) => ({
+        candidateId: `manual-${count}`,
+        panelCount: count,
+        systemSizeKw: Math.round(count * PANEL_WATTS / 100) / 10,
+        annualKwh: Math.round(count * PANEL_WATTS / 1000 * KWH_PER_KW_PER_YEAR),
+      })),
     carbonOffsetKgPerYear: Math.round(estimatedAnnualAcKwh * 0.7),
   };
 }

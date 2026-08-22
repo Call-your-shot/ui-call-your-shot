@@ -50,6 +50,7 @@ export interface InitialAssessment {
     expectedAnnualGenerationKwh: number;
     roofAreaM2?: number | null;
     usableRoofAreaM2?: number | null;
+    monthlyGenerationKwh?: number[] | null;
   };
   tenantEconomics: {
     baselineAnnualBillDollars: number;
@@ -81,7 +82,16 @@ export interface InitialAssessment {
     simulation: { iterations: number; forecast_years: number; random_seed: number | null };
     assumptions: { expected_annual_usage_kwh: number };
   };
+  sizing?: AssessmentSizingSelection | null;
   warnings: Array<{ code: string; message: string }>;
+}
+
+export interface AssessmentSizingSelection {
+  recommendedCandidateId: string;
+  recommendedPanelCount: number;
+  roofMaximumPanelCount: number;
+  selectionMethod: string;
+  recommendationReason: string;
 }
 
 export interface InitialAssessmentInput {
@@ -100,12 +110,14 @@ export interface InitialAssessmentInput {
     expectedAnnualGenerationKwh: number;
     roofAreaM2?: number;
     usableRoofAreaM2?: number;
+    monthlyGenerationKwh?: number[];
   };
   household: {
     expectedAnnualUsageKwh: number;
     currentAnnualBillDollars?: number;
     gridRateCentsPerKwh?: number;
     daytimeOccupancy: "most" | "sometimes" | "rarely";
+    monthlyUsageKwh?: number[];
   };
   installation?: {
     grossInstallationCostDollars?: number;
@@ -123,6 +135,7 @@ export interface InitialAssessmentInput {
     forecastYears?: number;
     randomSeed?: number;
   };
+  sizing?: AssessmentSizingSelection;
 }
 
 export interface BackendProposal {

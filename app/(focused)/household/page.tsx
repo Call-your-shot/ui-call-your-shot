@@ -13,9 +13,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type HomeDuringDay = BillFlowState["homeDuringDay"];
-type StepKind = "occupancy" | "heating" | "cooling" | "appliances";
+type StepKind = "occupants" | "occupancy" | "heating" | "cooling" | "appliances";
 
 const STEP_TITLES: Record<StepKind, string> = {
+  occupants: "Household size",
   occupancy: "Daytime occupancy",
   heating: "Heating",
   cooling: "Cooling",
@@ -36,6 +37,7 @@ export default function HouseholdPage() {
   const [billSeason, setBillSeason] = useState<Season>("winter");
 
   const [homeDuringDay, setHomeDuringDay] = useState<HomeDuringDay>(null);
+  const [occupantCount, setOccupantCount] = useState(1);
 
   const [heatingFlag, setHeatingFlag] = useState<boolean | null>(null);
   const [heatingHours, setHeatingHours] = useState<HoursBucket | null>(null);
@@ -57,6 +59,7 @@ export default function HouseholdPage() {
   useEffect(() => {
     const flow = loadBillFlow();
     setHomeDuringDay(flow.homeDuringDay);
+    setOccupantCount(flow.occupantCount);
     setHeatingFlag(flow.heatingNotUsedThisMonth);
     setHeatingHours(flow.heatingHours);
     setCoolingFlag(flow.coolingNotUsedThisMonth);
@@ -79,6 +82,7 @@ export default function HouseholdPage() {
   const showHeating = billSeason !== "winter";
   const showCooling = billSeason !== "summer";
   const steps: StepKind[] = [
+    "occupants",
     "occupancy",
     ...(showHeating ? (["heating"] as const) : []),
     ...(showCooling ? (["cooling"] as const) : []),
@@ -88,6 +92,7 @@ export default function HouseholdPage() {
   const currentKind = steps[step];
 
   const canAdvance =
+    (currentKind === "occupants" && occupantCount > 0) ||
     (currentKind === "occupancy" && homeDuringDay !== null) ||
     (currentKind === "heating" && heatingFlag !== null && (!heatingFlag || heatingHours !== null)) ||
     (currentKind === "cooling" && coolingFlag !== null && (!coolingFlag || coolingHours !== null)) ||
@@ -136,6 +141,7 @@ export default function HouseholdPage() {
     const loadResponse = await fetchAnnualLoad({
       address: flow.address,
       homeDuringDay,
+      occupantCount,
       ...consumptionInputs,
     });
     setSubmitting(false);
@@ -144,6 +150,7 @@ export default function HouseholdPage() {
     saveBillFlow({
       ...flow,
       homeDuringDay,
+      occupantCount,
       ...consumptionInputs,
       // The backend's annual-load estimate is what actually sizes the
       // system on /roof; the local estimate above only supplies the $/rate
@@ -151,6 +158,9 @@ export default function HouseholdPage() {
       estimatedAnnualKwh: annualLoad.estimatedAnnualUsageKwh,
       estimatedAnnualBillDollars: estimate?.estimatedAnnualBillDollars ?? flow.estimatedAnnualBillDollars,
       ratePerKwhCents: estimate?.ratePerKwhCents ?? flow.ratePerKwhCents,
+      monthlyUsage: annualLoad.monthlyUsage,
+      usageProfileSource: annualLoad.profileSource,
+      usageDataQuality: annualLoad.dataQuality,
     });
     router.push("/roof");
   }
@@ -171,6 +181,21 @@ export default function HouseholdPage() {
         <div className="mt-4">
           <StepIndicator steps={stepLabels} current={step} />
         </div>
+
+        {currentKind === "occupants" && (
+          <Question
+            title="How many people live here?"
+            subtitle="Household size helps us sense-check the monthly demand profile. Your electricity bill remains the primary source."
+          >
+            <div className="grid grid-cols-3 gap-3">
+              {[1, 2, 3, 4, 5, 6].map((count) => (
+                <OptionButton key={count} selected={occupantCount === count} onClick={() => setOccupantCount(count)}>
+                  {count === 6 ? "6+" : count}
+                </OptionButton>
+              ))}
+            </div>
+          </Question>
+        )}
 
         {currentKind === "occupancy" && (
           <Question title="Is anyone usually home during the day?">

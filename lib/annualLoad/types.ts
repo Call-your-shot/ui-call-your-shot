@@ -14,6 +14,7 @@ export interface AnnualLoadRequestPayload {
   billingPeriodEnd: string;
   billTotalCostDollars: number | null;
   homeDuringDay: "most" | "sometimes" | "rarely" | null;
+  occupantCount: number;
   heatingNotUsedThisMonth: boolean;
   heatingHours: HoursBucket | null;
   coolingNotUsedThisMonth: boolean;
@@ -26,8 +27,20 @@ export interface AnnualLoadRequestPayload {
   hotWaterHours: HoursBucket | null;
 }
 
+export interface MonthlyDemandEstimate {
+  calendarMonth: number;
+  monthName: string;
+  usageKwh: number;
+  daytimeUsageRatio: number;
+  source: "observed_bill" | "bill_period_derived" | "survey_derived";
+}
+
 export interface AnnualLoadResult {
   estimatedAnnualUsageKwh: number;
+  monthlyUsage: MonthlyDemandEstimate[];
+  observedMonthCount: number;
+  profileSource: "observed_bills" | "observed_and_survey_derived" | "single_bill_and_survey";
+  dataQuality: "high" | "medium" | "low";
   /** "backend" when a real estimate came back from the configured sizing
    * service; "fallback" when we derived it locally instead (backend not
    * configured, unreachable, or errored). */

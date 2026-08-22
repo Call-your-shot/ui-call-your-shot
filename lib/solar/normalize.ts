@@ -119,13 +119,10 @@ export function normalizeBuildingInsights(
 
   const mapCenter = { lat: building.center.latitude, lng: building.center.longitude };
 
-  // Only project panels belonging to segments in the SELECTED config, in
-  // panel-count order, so the overlay matches what we're recommending.
-  const selectedSegmentIndices = new Set(selected.roofSegmentSummaries.map((s) => s.segmentIndex));
-  const relevantPanels = solarPotential.solarPanels.filter((p) =>
-    selectedSegmentIndices.has(p.segmentIndex)
-  );
-  const panelsToShow = relevantPanels.slice(0, selected.panelsCount);
+  // Project every physically ranked panel once. The UI reveals only the
+  // chosen candidate count, allowing demand-based sizing to switch between
+  // Google configurations without another map request.
+  const panelsToShow = solarPotential.solarPanels;
 
   const panels: SolarPanelOverlay[] = panelsToShow.map((panel) => {
     const center = { lat: panel.center.latitude, lng: panel.center.longitude };
@@ -158,9 +155,15 @@ export function normalizeBuildingInsights(
   });
 
   const alternatives: SolarAlternative[] = solarPotential.solarPanelConfigs.map((c) => ({
+    candidateId: `google-${c.panelsCount}`,
     panelCount: c.panelsCount,
     systemSizeKw: Math.round(((c.panelsCount * TARGET_PANEL_WATTS) / 1000) * 10) / 10,
     annualKwh: Math.round(scaledAcKwh(c.yearlyEnergyDcKwh)),
+    segmentBreakdown: c.roofSegmentSummaries.map((summary) => ({
+      segmentIndex: summary.segmentIndex,
+      panelsCount: summary.panelsCount,
+      annualKwh: Math.round(scaledAcKwh(summary.yearlyEnergyDcKwh)),
+    })),
   }));
 
   const estimatedAnnualAcKwh = Math.round(scaledAcKwh(selected.yearlyEnergyDcKwh));
@@ -196,6 +199,29 @@ export function normalizeBuildingInsights(
     alternatives,
     carbonOffsetKgPerYear: Math.round(
       (estimatedAnnualAcKwh / 1000) * solarPotential.carbonOffsetFactorKgPerMwh
+    ),
+  };
+}
+
+/** Applies a backend-selected physical candidate while preserving imagery
+ * and roof geometry. This is the single mutation point for system choice. */
+export function applySolarAlternative(result: SolarResult, candidate: SolarAlternative): SolarResult {
+  const panelArea = result.system.panelDimensions.heightM * result.system.panelDimensions.widthM;
+  return {
+    ...result,
+    roof: {
+      ...result.roof,
+      practicalAreaM2: Math.round(candidate.panelCount * panelArea),
+    },
+    system: {
+      ...result.system,
+      panelCount: candidate.panelCount,
+      systemSizeKw: candidate.systemSizeKw,
+      estimatedAnnualAcKwh: candidate.annualKwh,
+      segmentBreakdown: candidate.segmentBreakdown ?? result.system.segmentBreakdown,
+    },
+    carbonOffsetKgPerYear: Math.round(
+      result.carbonOffsetKgPerYear * candidate.annualKwh / Math.max(1, result.system.estimatedAnnualAcKwh)
     ),
   };
 }

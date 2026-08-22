@@ -16,6 +16,7 @@ export interface BillFlowState {
   billTotalCostDollars: number | null;
 
   homeDuringDay: "most" | "sometimes" | "rarely" | null;
+  occupantCount: number;
 
   // Each pair below: "yes, we have/use this, just not this month" + how many
   // hours/day it runs when it IS used.
@@ -36,6 +37,9 @@ export interface BillFlowState {
   estimatedAnnualKwh: number | null;
   estimatedAnnualBillDollars: number | null;
   ratePerKwhCents: number | null;
+  monthlyUsage: import("@/lib/annualLoad/types").MonthlyDemandEstimate[];
+  usageProfileSource: "observed_bills" | "observed_and_survey_derived" | "single_bill_and_survey" | null;
+  usageDataQuality: "high" | "medium" | "low" | null;
 }
 
 export const emptyBillFlow: BillFlowState = {
@@ -46,6 +50,7 @@ export const emptyBillFlow: BillFlowState = {
   billTotalCostDollars: null,
 
   homeDuringDay: null,
+  occupantCount: 1,
 
   heatingNotUsedThisMonth: false,
   heatingHours: null,
@@ -61,6 +66,9 @@ export const emptyBillFlow: BillFlowState = {
   estimatedAnnualKwh: null,
   estimatedAnnualBillDollars: null,
   ratePerKwhCents: null,
+  monthlyUsage: [],
+  usageProfileSource: null,
+  usageDataQuality: null,
 };
 
 const STORAGE_KEY = "sunshare-bill-flow";
