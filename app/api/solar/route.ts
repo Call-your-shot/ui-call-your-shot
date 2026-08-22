@@ -5,15 +5,18 @@ import { buildMockSolarResult } from "@/lib/solar/mockFallback";
 import { normalizeBuildingInsights } from "@/lib/solar/normalize";
 import type { ScenarioId } from "@/lib/mockData";
 import type { SolarApiResponse } from "@/lib/solar/types";
+import type { AnnualLoadRequestPayload } from "@/lib/annualLoad/types";
 
 const DEFAULT_TARGET_ANNUAL_KWH = 5000;
 
 interface SolarRequestBody {
   address?: string;
   targetAnnualKwh?: number;
-  /** Recommended system size in kW from the sizing backend — takes
-   * precedence over targetAnnualKwh when both are present. */
-  targetSystemSizeKw?: number;
+  /** The full form collected across scan + household — same shape sent to
+   * /api/annual-load. Google's Solar API itself only needs the address and
+   * a target annual usage, so this rides along unused for now; it's here so
+   * the request carries full context for logging/debugging. */
+  formData?: AnnualLoadRequestPayload;
   /** Which mock scenario to fall back to — the flow only ever has two. */
   scenario?: ScenarioId;
   mock?: boolean;
@@ -32,8 +35,11 @@ export async function POST(req: NextRequest) {
 
   const scenarioId: ScenarioId = body.scenario ?? "bellambi";
   const targetAnnualKwh = body.targetAnnualKwh ?? DEFAULT_TARGET_ANNUAL_KWH;
-  const targetSystemSizeKw = body.targetSystemSizeKw;
   const forceMock = body.mock === true || req.nextUrl.searchParams.get("mock") === "1";
+
+  if (body.formData) {
+    console.log("[api/solar] full household form data:", JSON.stringify(body.formData));
+  }
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -78,8 +84,7 @@ export async function POST(req: NextRequest) {
       cascade.response,
       cascade.quality,
       geocoded.formattedAddress,
-      targetAnnualKwh,
-      targetSystemSizeKw
+      targetAnnualKwh
     );
 
     return NextResponse.json<SolarApiResponse>({ ok: true, result });

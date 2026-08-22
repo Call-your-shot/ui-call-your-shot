@@ -2,11 +2,12 @@ import type { HoursBucket } from "@/lib/consumption/types";
 
 // ---------------------------------------------------------------------------
 // The JSON payload we hand to the sizing backend, and the shape it hands
-// back. The backend owns the actual sizing logic — everything here is just
-// the form data collected across scan + household, serialized as-is.
+// back. The backend estimates the household's annual electricity load in
+// kWh; Google's Solar API then picks the closest real panel configuration
+// for that target on the actual roof.
 // ---------------------------------------------------------------------------
 
-export interface SystemSizeRequestPayload {
+export interface AnnualLoadRequestPayload {
   address: string;
   billUsageKwh: number;
   billingPeriodStart: string;
@@ -25,28 +26,28 @@ export interface SystemSizeRequestPayload {
   hotWaterHours: HoursBucket | null;
 }
 
-export interface SystemSizeResult {
-  systemSizeKw: number;
-  /** "backend" when a real recommendation came back from the configured
-   * sizing service; "fallback" when we derived it locally instead (backend
-   * not configured, unreachable, or errored). */
+export interface AnnualLoadResult {
+  estimatedAnnualUsageKwh: number;
+  /** "backend" when a real estimate came back from the configured sizing
+   * service; "fallback" when we derived it locally instead (backend not
+   * configured, unreachable, or errored). */
   source: "backend" | "fallback";
 }
 
-export type SystemSizeErrorCode = "NOT_CONFIGURED" | "API_ERROR";
+export type AnnualLoadErrorCode = "NOT_CONFIGURED" | "API_ERROR";
 
-export interface SystemSizeApiError {
+export interface AnnualLoadApiError {
   ok: false;
-  code: SystemSizeErrorCode;
+  code: AnnualLoadErrorCode;
   message: string;
-  /** Always present — a locally-derived size so the flow never dead-ends
-   * on a backend that isn't up yet. */
-  fallback: SystemSizeResult;
+  /** Always present — a locally-derived estimate so the flow never
+   * dead-ends on a backend that isn't up yet. */
+  fallback: AnnualLoadResult;
 }
 
-export interface SystemSizeApiSuccess {
+export interface AnnualLoadApiSuccess {
   ok: true;
-  result: SystemSizeResult;
+  result: AnnualLoadResult;
 }
 
-export type SystemSizeApiResponse = SystemSizeApiSuccess | SystemSizeApiError;
+export type AnnualLoadApiResponse = AnnualLoadApiSuccess | AnnualLoadApiError;

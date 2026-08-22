@@ -6,7 +6,9 @@ import StepIndicator from "@/components/ui/StepIndicator";
 import { estimateAnnualUsage, getBillSeason } from "@/lib/consumption/estimate";
 import type { HoursBucket, Season } from "@/lib/consumption/types";
 import { loadBillFlow, saveBillFlow, type BillFlowState } from "@/lib/billFlow";
+import { fetchAnnualLoad } from "@/lib/annualLoad/client";
 import { cn } from "@/lib/utils";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -46,6 +48,7 @@ export default function HouseholdPage() {
   const [evHours, setEvHours] = useState<HoursBucket | null>(null);
   const [hotWaterFlag, setHotWaterFlag] = useState(false);
   const [hotWaterHours, setHotWaterHours] = useState<HoursBucket | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Resume any in-progress answers, and work out which of the seasonal
   // questions are even worth asking (the bill's own season is already
@@ -93,7 +96,7 @@ export default function HouseholdPage() {
       (!evFlag || evHours !== null) &&
       (!hotWaterFlag || hotWaterHours !== null));
 
-  function next() {
+  async function next() {
     if (step < steps.length - 1) {
       setStep((s) => s + 1);
       return;
@@ -103,29 +106,13 @@ export default function HouseholdPage() {
     const finalHeatingFlag = showHeating ? !!heatingFlag : false;
     const finalCoolingFlag = showCooling ? !!coolingFlag : false;
 
-    const estimate =
-      flow.usageKwh && flow.billingPeriodStart && flow.billingPeriodEnd
-        ? estimateAnnualUsage({
-            billUsageKwh: flow.usageKwh,
-            billingPeriodStart: flow.billingPeriodStart,
-            billingPeriodEnd: flow.billingPeriodEnd,
-            billTotalCostDollars: flow.billTotalCostDollars,
-            heatingNotUsedThisMonth: finalHeatingFlag,
-            heatingHours: finalHeatingFlag ? heatingHours : null,
-            coolingNotUsedThisMonth: finalCoolingFlag,
-            coolingHours: finalCoolingFlag ? coolingHours : null,
-            poolNotUsedThisMonth: poolFlag,
-            poolHours,
-            evNotUsedThisMonth: evFlag,
-            evHours,
-            hotWaterNotUsedThisMonth: hotWaterFlag,
-            hotWaterHours,
-          })
-        : null;
-
-    saveBillFlow({
-      ...flow,
-      homeDuringDay,
+    // Shared by both the local estimate (for the on-screen kWh/$ figures)
+    // and the JSON payload we hand to the sizing backend.
+    const consumptionInputs = {
+      billUsageKwh: flow.usageKwh ?? 0,
+      billingPeriodStart: flow.billingPeriodStart,
+      billingPeriodEnd: flow.billingPeriodEnd,
+      billTotalCostDollars: flow.billTotalCostDollars,
       heatingNotUsedThisMonth: finalHeatingFlag,
       heatingHours: finalHeatingFlag ? heatingHours : null,
       coolingNotUsedThisMonth: finalCoolingFlag,
@@ -136,7 +123,32 @@ export default function HouseholdPage() {
       evHours,
       hotWaterNotUsedThisMonth: hotWaterFlag,
       hotWaterHours,
-      estimatedAnnualKwh: estimate?.annualKwh ?? flow.estimatedAnnualKwh,
+    };
+
+    // $/rate figures aren't something the backend estimates — always derive
+    // those locally from the bill.
+    const estimate =
+      flow.usageKwh && flow.billingPeriodStart && flow.billingPeriodEnd
+        ? estimateAnnualUsage(consumptionInputs)
+        : null;
+
+    setSubmitting(true);
+    const loadResponse = await fetchAnnualLoad({
+      address: flow.address,
+      homeDuringDay,
+      ...consumptionInputs,
+    });
+    setSubmitting(false);
+    const annualLoad = loadResponse.ok ? loadResponse.result : loadResponse.fallback;
+
+    saveBillFlow({
+      ...flow,
+      homeDuringDay,
+      ...consumptionInputs,
+      // The backend's annual-load estimate is what actually sizes the
+      // system on /roof; the local estimate above only supplies the $/rate
+      // figures, which the backend doesn't produce.
+      estimatedAnnualKwh: annualLoad.estimatedAnnualUsageKwh,
       estimatedAnnualBillDollars: estimate?.estimatedAnnualBillDollars ?? flow.estimatedAnnualBillDollars,
       ratePerKwhCents: estimate?.ratePerKwhCents ?? flow.ratePerKwhCents,
     });
@@ -275,11 +287,20 @@ export default function HouseholdPage() {
 
       <BottomCTA>
         <div className="flex gap-3">
-          <Button variant="secondary" onClick={back} className="w-24">
+          <Button variant="secondary" onClick={back} className="w-24" disabled={submitting}>
             Back
           </Button>
-          <Button fullWidth disabled={!canAdvance} onClick={next}>
-            {step === steps.length - 1 ? "Continue" : "Next"}
+          <Button fullWidth disabled={!canAdvance || submitting} onClick={next}>
+            {submitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                Estimating your usage…
+              </>
+            ) : step === steps.length - 1 ? (
+              "Continue"
+            ) : (
+              "Next"
+            )}
           </Button>
         </div>
       </BottomCTA>

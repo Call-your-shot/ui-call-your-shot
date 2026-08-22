@@ -89,15 +89,17 @@ export function PartA({ data, showWatermark }: { data: ProposalPdfData; showWate
       <Para>
         {data.ownerName} is invited to fund a {roof.systemSizeKw} kW solar system at{" "}
         {data.propertyAddress}. {data.occupantName} pays for the solar power it produces at a
-        reduced rate, repaying the investment over time. Once repaid, {data.occupantName} receives
-        solar power at no charge for the remaining life of the system.
+        reduced rate, repaying the investment over time. Once repaid, the rate {data.occupantName}{" "}
+        pays drops permanently to the Post-Completion Rate of {data.postCompletionRateCents} cents
+        per kilowatt hour — still well under grid price — for the remaining life of the system,
+        and {data.ownerName} continues to earn income at that rate rather than none at all.
       </Para>
       <KeyValueTable
         rows={[
           { label: "System size", value: `${roof.systemSizeKw} kW (${roof.panelCount} panels)` },
           { label: "Estimated annual generation", value: `${data.annualGenerationKwh.toLocaleString("en-AU")} kWh` },
           { label: "Total installed cost", value: formatCurrency(r.systemCost) },
-          { label: "Federal battery rebate", value: `− ${formatCurrency(r.federalRebate)}` },
+          { label: "Federal STC solar rebate", value: `− ${formatCurrency(r.federalRebate)}` },
           { label: "Net investment", value: formatCurrency(r.netLandlordInvestment), bold: true },
           { label: "Estimated annual income to Owner", value: formatCurrency(data.annualIncomeToOwner) },
           { label: "Estimated return", value: `${r.landlordReturnPercent}% p.a.` },

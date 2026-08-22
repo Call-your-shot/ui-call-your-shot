@@ -132,7 +132,7 @@ function ResultsView() {
       {detailOpen && (
         <Card className="mt-2 animate-fade-up">
           <DetailRow label="System cost" value={formatCurrency(r.systemCost)} />
-          <DetailRow label="Federal battery rebate" value={`− ${formatCurrency(r.federalRebate)}`} accent="success" />
+          <DetailRow label="Federal STC solar rebate" value={`− ${formatCurrency(r.federalRebate)}`} accent="success" />
           <DetailRow label="Net landlord investment" value={formatCurrency(r.netLandlordInvestment)} bold />
           <DetailRow label="20-year maintenance reserve" value={formatCurrency(r.maintenanceReserve20yr)} />
           <DetailRow label="Landlord return" value={`${r.landlordReturnPercent}% p.a.`} bold />

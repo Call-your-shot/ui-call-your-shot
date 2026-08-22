@@ -30,13 +30,12 @@ export interface BillFlowState {
   hotWaterNotUsedThisMonth: boolean;
   hotWaterHours: HoursBucket | null;
 
+  /** From the annual-load backend when configured, otherwise derived
+   * locally. Drives panel selection on /roof via Google Solar's own
+   * annual-kWh-target matching. */
   estimatedAnnualKwh: number | null;
   estimatedAnnualBillDollars: number | null;
   ratePerKwhCents: number | null;
-  /** Recommended system size in kW — from the sizing backend when
-   * configured, otherwise derived locally. Drives panel selection on /roof. */
-  systemSizeKw: number | null;
-  systemSizeSource: "backend" | "fallback" | null;
 }
 
 export const emptyBillFlow: BillFlowState = {
@@ -62,8 +61,6 @@ export const emptyBillFlow: BillFlowState = {
   estimatedAnnualKwh: null,
   estimatedAnnualBillDollars: null,
   ratePerKwhCents: null,
-  systemSizeKw: null,
-  systemSizeSource: null,
 };
 
 const STORAGE_KEY = "sunshare-bill-flow";

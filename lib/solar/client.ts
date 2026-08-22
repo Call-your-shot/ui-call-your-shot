@@ -1,4 +1,5 @@
 import type { ScenarioId } from "@/lib/mockData";
+import type { AnnualLoadRequestPayload } from "@/lib/annualLoad/types";
 import { buildMockSolarResult } from "./mockFallback";
 import type { SolarApiResponse } from "./types";
 
@@ -12,7 +13,9 @@ export async function fetchSolarData(params: {
   address: string;
   scenario: ScenarioId;
   targetAnnualKwh?: number;
-  targetSystemSizeKw?: number;
+  /** The full form collected across scan + household — carried along so
+   * the request isn't limited to just the derived target number. */
+  formData?: AnnualLoadRequestPayload;
   forceMock?: boolean;
 }): Promise<SolarApiResponse> {
   try {
@@ -23,7 +26,7 @@ export async function fetchSolarData(params: {
         address: params.address,
         scenario: params.scenario,
         targetAnnualKwh: params.targetAnnualKwh,
-        targetSystemSizeKw: params.targetSystemSizeKw,
+        formData: params.formData,
         mock: params.forceMock,
       }),
     });

@@ -76,6 +76,7 @@ export function Schedules({ data, showWatermark }: { data: ProposalPdfData; show
           { label: "Inverter warranty", value: `${d.systemSpec.inverterWarrantyYears} years` },
           { label: "Workmanship warranty", value: `${d.systemSpec.workmanshipWarrantyYears} years` },
           { label: "Monitoring", value: d.systemSpec.monitoring },
+          { label: "Revenue meter", value: d.systemSpec.meterSpec },
         ]}
       />
 

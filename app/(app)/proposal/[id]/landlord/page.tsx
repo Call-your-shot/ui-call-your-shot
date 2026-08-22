@@ -117,7 +117,7 @@ export default function LandlordProposalPage() {
 
         <div className="mt-4">
           <Callout variant="warning" heading="Rebate step-down coming">
-            The federal battery rebate drops again on{" "}
+            The federal STC solar rebate drops again on{" "}
             {formatDate(rebateStepDownDate)}. Acting before then saves
             approximately {formatCurrency(rebateStepDownSavings)}.
           </Callout>

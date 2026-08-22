@@ -84,7 +84,7 @@ export default function ProposalPage() {
         <DocSection number={3} title="Investment breakdown">
           <Card>
             <Row label="System cost" value={formatCurrency(r.systemCost)} />
-            <Row label="Federal battery rebate" value={`− ${formatCurrency(r.federalRebate)}`} />
+            <Row label="Federal STC solar rebate" value={`− ${formatCurrency(r.federalRebate)}`} />
             <Row label="Net landlord investment" value={formatCurrency(r.netLandlordInvestment)} bold />
             <Row label="20-year maintenance reserve" value={formatCurrency(r.maintenanceReserve20yr)} />
           </Card>

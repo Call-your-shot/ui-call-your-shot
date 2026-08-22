@@ -12,6 +12,8 @@ import { fetchSolarData } from "@/lib/solar/client";
 import { buildManualSolarResult } from "@/lib/solar/manualEstimate";
 import { buildMockSolarResult } from "@/lib/solar/mockFallback";
 import type { SolarApiResponse, SolarResult } from "@/lib/solar/types";
+import { billFlowToPayload } from "@/lib/annualLoad/payload";
+import type { AnnualLoadRequestPayload } from "@/lib/annualLoad/types";
 import { ChevronDown, Grid2x2, Compass, Layers, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -67,6 +69,7 @@ export default function RoofPage() {
   const loading = !minTimerDone || apiPhase.kind === "pending";
   const [addressInput, setAddressInput] = useState(() => formatAddress(property.address));
   const [targetAnnualKwh, setTargetAnnualKwh] = useState<number | undefined>(undefined);
+  const [formData, setFormData] = useState<AnnualLoadRequestPayload | undefined>(undefined);
   const [estimatedAnnualBillDollars, setEstimatedAnnualBillDollars] = useState<number | undefined>(undefined);
   const [ratePerKwhCents, setRatePerKwhCents] = useState<number | undefined>(undefined);
   const [manualArea, setManualArea] = useState("");
@@ -99,13 +102,23 @@ export default function RoofPage() {
     const flow = loadBillFlow();
     const address = flow.address || formatAddress(property.address);
     const annualKwh = flow.estimatedAnnualKwh ?? undefined;
+    // The full form collected across scan + household, so /api/solar isn't
+    // limited to just the derived target number.
+    const fullFormData = { ...billFlowToPayload(flow), address };
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from sessionStorage after mount
     setAddressInput(address);
     setTargetAnnualKwh(annualKwh);
+    setFormData(fullFormData);
     setEstimatedAnnualBillDollars(flow.estimatedAnnualBillDollars ?? undefined);
     setRatePerKwhCents(flow.ratePerKwhCents ?? undefined);
 
-    fetchSolarData({ address, scenario, targetAnnualKwh: annualKwh, forceMock }).then((res) => {
+    fetchSolarData({
+      address,
+      scenario,
+      targetAnnualKwh: annualKwh,
+      formData: fullFormData,
+      forceMock,
+    }).then((res) => {
       if (!cancelled) applyResponse(res);
     });
 
@@ -126,7 +139,12 @@ export default function RoofPage() {
 
   function retryGeocode() {
     setApiPhase({ kind: "pending" });
-    fetchSolarData({ address: addressInput, scenario, targetAnnualKwh }).then(applyResponse);
+    fetchSolarData({
+      address: addressInput,
+      scenario,
+      targetAnnualKwh,
+      formData: formData ? { ...formData, address: addressInput } : undefined,
+    }).then(applyResponse);
   }
 
   function submitManualEstimate() {

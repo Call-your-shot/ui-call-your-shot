@@ -92,7 +92,12 @@ export interface ProposalPdfData {
     inverterReplacementCost: number;
     workmanshipWarrantyYears: number;
     monitoring: string;
+    meterSpec: string;
   };
+
+  // Clause 14 — the reduced rate Occupant pays after Completion, instead of
+  // the Tariff Rate ceasing altogether (see lib/pdf/PartB.tsx clause 14).
+  postCompletionRateCents: number;
 
   // A2 — imagery
   imagery: {
@@ -176,6 +181,11 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
   const validUntilDate = addDays(preparedDate, policy.validityWindowDays);
 
   const annualGenerationKwh = Math.round(scenario.roof.systemSizeKw * policy.annualYieldPerKw);
+
+  // Clause 14 — after Completion the Tariff Rate reduces rather than
+  // dropping to zero, so the Owner isn't left funding maintenance/insurance
+  // indefinitely on zero ongoing income.
+  const postCompletionRateCents = Math.round(r.solarRateCents * policy.postCompletionRateFraction * 10) / 10;
 
   const totalChargeDollars = sum(mockMonthlyReadings.map((m) => m.chargeDollars));
   const totalSavingsDollars = sum(mockMonthlyReadings.map((m) => m.savingsDollars));
@@ -274,6 +284,11 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
       value: `${formatCurrency(plan.terms.monthlyReserveContribution)} / billing period`,
       source: "SunShare standard reserve rate, Schedule 3",
     },
+    {
+      label: "Post-Completion Tariff Rate",
+      value: `${postCompletionRateCents} cents / kWh`,
+      source: `Clause 14.2 — ${policy.postCompletionRateFraction * 100}% of the Tariff Rate at Completion, CPI-indexed`,
+    },
   ];
 
   const inverterEvent = maintenanceSchedule.find((e) => e.description.toLowerCase().includes("inverter replacement"));
@@ -291,6 +306,7 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
     inverterReplacementCost: inverterEvent?.costDollars ?? 0,
     workmanshipWarrantyYears: 6,
     monitoring: "Owner and Occupant web portal (the Platform) — real-time generation, consumption and Recovery Balance",
+    meterSpec: "NMI Pattern-Approved revenue meter, Class 1.0 accuracy or better (National Measurement Act 1960)",
   };
 
   const imagery = {
@@ -329,9 +345,13 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
     preparedDate,
     validUntilDate,
     ownerName: plan.landlordName,
-    occupantName: plan.tenantName,
+    // "You" is the in-app placeholder for whoever's signed in as tenant —
+    // fine for dashboard-style UI, not a valid party name on an executable
+    // legal document.
+    occupantName: plan.tenantName === "You" ? "[Tenant Full Legal Name]" : plan.tenantName,
     propertyAddress: formatAddress(plan.address),
     annualGenerationKwh,
+    postCompletionRateCents,
     annualIncomeToOwner,
     recoveryPeriodLabel: recoveryPeriodFromSchedule(),
     ownerYearRows,

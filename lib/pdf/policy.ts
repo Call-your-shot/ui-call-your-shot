@@ -9,6 +9,12 @@ export const policy = {
   performanceSuspensionThresholdPercent: 60,
   performanceSuspensionDays: 3,
   panelWarrantyYears: 25,
+  // Clause 14 — after Completion, the Tariff Rate reduces to this fraction
+  // of its pre-Completion value (still CPI-indexed, still capped by the
+  // Never-Worse-Off Guarantee) rather than dropping to zero. Keeps the
+  // Owner earning a perpetual yield instead of holding a maintenance
+  // liability with no ongoing income.
+  postCompletionRateFraction: 0.5,
   annualYieldPerKw: 1316, // kWh/kW/yr — Clean Energy Council indicative yield, Illawarra NSW
   degradationPercentPerYear: 0.5, // industry-standard linear panel degradation
   validityWindowDays: 30,

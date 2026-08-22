@@ -91,6 +91,10 @@ export function PartB({ data, showWatermark }: { data: ProposalPdfData; showWate
           The record of metered data and charges issued to both parties each Billing Period.
         </Definition>
         <Definition term="Completion">The date the Recovery Balance reaches zero.</Definition>
+        <Definition term="Post-Completion Rate">
+          The rate of {d.postCompletionRateCents} cents per kilowatt hour charged to the Occupant
+          for Solar Energy from Completion onward, under clause 14.
+        </Definition>
         <Definition term="Platform">
           The SunShare web portal through which both parties view metered data and the Recovery
           Balance.
@@ -205,8 +209,10 @@ export function PartB({ data, showWatermark }: { data: ProposalPdfData; showWate
         the Platform.
       </Clause>
       <Clause number="9.4">
-        The Owner will not increase rent by reason of this Agreement, and the charges under this
-        Agreement are separate from and additional to no rent adjustment.
+        The Owner will not increase rent by reason of this Agreement. Charges under clause 5 are
+        payable as consideration for Solar Energy supplied, separately from and in addition to
+        rent, consistent with the Occupant&apos;s obligation to pay utility charges under sections
+        38 and 39 of the Residential Tenancies Act 2010 (NSW).
       </Clause>
 
       <ClauseHeading number="10">Performance suspension</ClauseHeading>
@@ -262,13 +268,19 @@ export function PartB({ data, showWatermark }: { data: ProposalPdfData; showWate
 
       <ClauseHeading number="14">Completion</ClauseHeading>
       <Clause number="14.1">
-        On the Recovery Balance reaching zero, charges under clause 5 cease permanently.
+        On the Recovery Balance reaching zero (&quot;Completion&quot;), the Tariff Rate charged
+        under clause 5 reduces permanently to the Post-Completion Rate of{" "}
+        {d.postCompletionRateCents} cents per kilowatt hour.
       </Clause>
       <Clause number="14.2">
-        After Completion, Solar Energy is supplied to the Occupant at no charge for the remaining
-        life of the system.
+        The Post-Completion Rate remains subject to the Never-Worse-Off Guarantee in clause 6, is
+        indexed annually to CPI (Sydney, all groups) from the first anniversary of Completion, and
+        is never increased for any other reason.
       </Clause>
-      <Clause number="14.3">The Owner remains responsible for maintenance after Completion.</Clause>
+      <Clause number="14.3">
+        The Owner remains responsible for maintenance after Completion. Charges at the
+        Post-Completion Rate continue to fund the Reserve under clause 8.
+      </Clause>
       <Clause number="14.4">
         Completion cannot be reversed, and no new Recovery Balance may be created except for a
         capital replacement agreed in writing under a separate agreement complying with clause 3.2.
@@ -285,7 +297,9 @@ export function PartB({ data, showWatermark }: { data: ProposalPdfData; showWate
       </Clause>
 
       <ClauseHeading number="16">Metering and data</ClauseHeading>
-      <Clause number="16.1">Charges are based on metered data recorded at the Property.</Clause>
+      <Clause number="16.1">
+        Charges are based on data recorded by {d.systemSpec.meterSpec}, installed at the Property.
+      </Clause>
       <Clause number="16.2">Either party may request the underlying interval data at any time.</Clause>
       <Clause number="16.3">
         Personal information is handled in accordance with the Privacy Act 1988 (Cth).

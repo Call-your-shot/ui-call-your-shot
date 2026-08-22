@@ -77,25 +77,6 @@ export function selectConfig(
   );
 }
 
-/** Selects the panel configuration whose system size (panel count x our
- * standard 440W panel — same basis as `alternatives[].systemSizeKw` below)
- * is closest to a target size in kW — used when the sizing backend hands
- * back a recommended system size directly rather than a target annual
- * usage. Panel count itself isn't rescaled (see TARGET_PANEL_WATTS above),
- * only the per-panel energy yield is, so this deliberately doesn't take a
- * `scale` argument. */
-export function selectConfigByKw(configs: SolarPanelConfig[], targetSystemSizeKw: number): SolarPanelConfig {
-  if (configs.length === 0) {
-    throw new Error("selectConfigByKw: no configs to choose from");
-  }
-  const systemSizeKw = (c: SolarPanelConfig) => (c.panelsCount * TARGET_PANEL_WATTS) / 1000;
-  return configs.reduce((best, c) =>
-    Math.abs(systemSizeKw(c) - targetSystemSizeKw) < Math.abs(systemSizeKw(best) - targetSystemSizeKw)
-      ? c
-      : best
-  );
-}
-
 /**
  * Converts a raw Google Solar API building-insights response, plus the
  * household's target annual usage, into the shape the UI actually renders.
@@ -107,17 +88,12 @@ export function normalizeBuildingInsights(
   building: BuildingInsightsResponse,
   quality: ImageryQuality,
   formattedAddress: string,
-  targetAnnualKwh: number,
-  targetSystemSizeKw?: number
+  targetAnnualKwh: number
 ): SolarResult {
   const { solarPotential } = building;
   const scale = TARGET_PANEL_WATTS / solarPotential.panelCapacityWatts;
 
-  // A recommended system size (from the sizing backend) takes precedence
-  // over matching by annual usage when both are available.
-  const selected = targetSystemSizeKw
-    ? selectConfigByKw(solarPotential.solarPanelConfigs, targetSystemSizeKw)
-    : selectConfig(solarPotential.solarPanelConfigs, targetAnnualKwh, scale, SYSTEM_DERATE);
+  const selected = selectConfig(solarPotential.solarPanelConfigs, targetAnnualKwh, scale, SYSTEM_DERATE);
 
   const scaledAcKwh = (dcKwh: number) => dcKwh * scale * SYSTEM_DERATE;
 

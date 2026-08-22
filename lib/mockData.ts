@@ -131,9 +131,14 @@ export const scenarios: Record<ScenarioId, PropertyScenario> = {
       usableFace: "Main north face",
     },
     results: {
-      annualSavings: 1180,
-      currentAnnualBill: 2340,
-      withSunShareAnnualBill: 1160,
+      // Derived from mockBillDetails.averageDailyUsageKwh (14.2 kWh/day ->
+      // 5,183 kWh/yr) split by solarSharePercent below, at solarRateCents /
+      // gridRateCents: currentAnnualBill = 5183 * 0.30; withSunShareAnnualBill
+      // = (5183*0.62)*0.15 + (5183*0.38)*0.30; annualSavings = the difference.
+      // Keep these three in lockstep if any of those four inputs change.
+      annualSavings: 482,
+      currentAnnualBill: 1555,
+      withSunShareAnnualBill: 1073,
       solarSharePercent: 62,
       gridSharePercent: 38,
       solarRateCents: 15,
@@ -199,12 +204,14 @@ export interface ConfidencePoint {
   high: number;
 }
 
+// Same relative shape as before, rescaled so year 1's median matches the
+// corrected annualSavings figure above (factor = 482/1180).
 export const confidenceFan: ConfidencePoint[] = [
-  { year: 1, low: 780, median: 1180, high: 1520 },
-  { year: 2, low: 820, median: 1240, high: 1610 },
-  { year: 3, low: 860, median: 1300, high: 1700 },
-  { year: 4, low: 890, median: 1350, high: 1780 },
-  { year: 5, low: 910, median: 1400, high: 1860 },
+  { year: 1, low: 319, median: 482, high: 621 },
+  { year: 2, low: 335, median: 507, high: 658 },
+  { year: 3, low: 351, median: 531, high: 694 },
+  { year: 4, low: 364, median: 551, high: 727 },
+  { year: 5, low: 372, median: 572, high: 760 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -277,7 +284,7 @@ export const fairnessGuarantees: string[] = [
   "Tenant never pays more than grid price in any half hour",
   "Tenant can exit at any time, no penalty",
   "Balance stays with the property, not the tenant",
-  "Charge stops permanently once the balance is repaid",
+  "Charge halves permanently once the balance is repaid — never rises again",
   "Charge suspends automatically if the system stops generating",
 ];
 
