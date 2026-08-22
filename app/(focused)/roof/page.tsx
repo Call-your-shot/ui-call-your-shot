@@ -5,6 +5,7 @@ import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
 import StatChip from "@/components/ui/StatChip";
 import HouseIllustration from "@/components/civic/HouseIllustration";
+import { loadBillFlow } from "@/lib/billFlow";
 import { useDemo } from "@/lib/demo-context";
 import { formatAddress, scenarios } from "@/lib/mockData";
 import { fetchSolarData } from "@/lib/solar/client";
@@ -65,6 +66,9 @@ export default function RoofPage() {
   // directly rather than mirrored into its own state + effect.
   const loading = !minTimerDone || apiPhase.kind === "pending";
   const [addressInput, setAddressInput] = useState(() => formatAddress(property.address));
+  const [targetAnnualKwh, setTargetAnnualKwh] = useState<number | undefined>(undefined);
+  const [estimatedAnnualBillDollars, setEstimatedAnnualBillDollars] = useState<number | undefined>(undefined);
+  const [ratePerKwhCents, setRatePerKwhCents] = useState<number | undefined>(undefined);
   const [manualArea, setManualArea] = useState("");
   const [manualAzimuth, setManualAzimuth] = useState(0);
   const [manualPitch, setManualPitch] = useState("20");
@@ -89,7 +93,19 @@ export default function RoofPage() {
     const params = new URLSearchParams(window.location.search);
     const forceMock = params.get("mock") === "1";
 
-    fetchSolarData({ address: formatAddress(property.address), scenario, forceMock }).then((res) => {
+    // Prefer the real address + estimated annual usage collected in the
+    // scan/household steps; fall back to the fixed demo scenario when the
+    // user landed here directly (e.g. during dev).
+    const flow = loadBillFlow();
+    const address = flow.address || formatAddress(property.address);
+    const annualKwh = flow.estimatedAnnualKwh ?? undefined;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time sync from sessionStorage after mount
+    setAddressInput(address);
+    setTargetAnnualKwh(annualKwh);
+    setEstimatedAnnualBillDollars(flow.estimatedAnnualBillDollars ?? undefined);
+    setRatePerKwhCents(flow.ratePerKwhCents ?? undefined);
+
+    fetchSolarData({ address, scenario, targetAnnualKwh: annualKwh, forceMock }).then((res) => {
       if (!cancelled) applyResponse(res);
     });
 
@@ -110,7 +126,7 @@ export default function RoofPage() {
 
   function retryGeocode() {
     setApiPhase({ kind: "pending" });
-    fetchSolarData({ address: addressInput, scenario }).then(applyResponse);
+    fetchSolarData({ address: addressInput, scenario, targetAnnualKwh }).then(applyResponse);
   }
 
   function submitManualEstimate() {
@@ -245,6 +261,22 @@ export default function RoofPage() {
               {primarySegment.compassDirection}-facing roof
               {result.roof.segments.length > 1 ? ", multiple faces used" : ""}
             </p>
+            {targetAnnualKwh && (
+              <p className="text-small mt-1 text-muted">
+                Sized for ~{targetAnnualKwh.toLocaleString()} kWh/year, estimated from your bill and
+                household answers.
+                {estimatedAnnualBillDollars != null && ratePerKwhCents != null && (
+                  <>
+                    {" "}
+                    That&apos;s roughly{" "}
+                    <span className="font-semibold text-ink">
+                      ${estimatedAnnualBillDollars.toLocaleString(undefined, { maximumFractionDigits: 0 })}/year
+                    </span>{" "}
+                    at {ratePerKwhCents}c/kWh.
+                  </>
+                )}
+              </p>
+            )}
 
             <div className="relative mt-4 aspect-square w-full overflow-hidden rounded-lg border-2 border-primary bg-gradient-to-br from-primary-dark via-primary to-primary-dark">
               {result.source === "google" && result.panels.length > 0 ? (

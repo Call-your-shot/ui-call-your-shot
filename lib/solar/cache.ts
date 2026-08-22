@@ -1,4 +1,4 @@
-import type { SolarResult } from "./types";
+import type { BuildingInsightsCascadeResult } from "./googleClient";
 
 // ---------------------------------------------------------------------------
 // In-memory cache, keyed by rounded coordinates.
@@ -11,13 +11,18 @@ import type { SolarResult } from "./types";
 // Vercel or similar would want this backed by Redis/KV instead; the
 // interface below is deliberately small so swapping the implementation
 // later doesn't touch any call sites.
+//
+// Caches the raw building-insights response, not the derived SolarResult —
+// the derivation depends on the household's target usage/system size, which
+// varies per request even for the same address, so it has to be re-run on
+// every request rather than baked into the cached entry.
 // ---------------------------------------------------------------------------
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const COORD_PRECISION = 5;
 
 interface CacheEntry {
-  result: SolarResult;
+  cascade: BuildingInsightsCascadeResult;
   expiresAt: number;
 }
 
@@ -27,18 +32,18 @@ export function cacheKey(lat: number, lng: number): string {
   return `${lat.toFixed(COORD_PRECISION)},${lng.toFixed(COORD_PRECISION)}`;
 }
 
-export function getCached(lat: number, lng: number): SolarResult | undefined {
+export function getCached(lat: number, lng: number): BuildingInsightsCascadeResult | undefined {
   const entry = store.get(cacheKey(lat, lng));
   if (!entry) return undefined;
   if (Date.now() > entry.expiresAt) {
     store.delete(cacheKey(lat, lng));
     return undefined;
   }
-  return entry.result;
+  return entry.cascade;
 }
 
-export function setCached(lat: number, lng: number, result: SolarResult): void {
-  store.set(cacheKey(lat, lng), { result, expiresAt: Date.now() + TTL_MS });
+export function setCached(lat: number, lng: number, cascade: BuildingInsightsCascadeResult): void {
+  store.set(cacheKey(lat, lng), { cascade, expiresAt: Date.now() + TTL_MS });
 }
 
 /** Test/ops escape hatch — not used by the route handler itself. */

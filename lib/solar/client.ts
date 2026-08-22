@@ -12,6 +12,7 @@ export async function fetchSolarData(params: {
   address: string;
   scenario: ScenarioId;
   targetAnnualKwh?: number;
+  targetSystemSizeKw?: number;
   forceMock?: boolean;
 }): Promise<SolarApiResponse> {
   try {
@@ -22,6 +23,7 @@ export async function fetchSolarData(params: {
         address: params.address,
         scenario: params.scenario,
         targetAnnualKwh: params.targetAnnualKwh,
+        targetSystemSizeKw: params.targetSystemSizeKw,
         mock: params.forceMock,
       }),
     });

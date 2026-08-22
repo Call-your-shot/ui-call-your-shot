@@ -11,6 +11,9 @@ const DEFAULT_TARGET_ANNUAL_KWH = 5000;
 interface SolarRequestBody {
   address?: string;
   targetAnnualKwh?: number;
+  /** Recommended system size in kW from the sizing backend — takes
+   * precedence over targetAnnualKwh when both are present. */
+  targetSystemSizeKw?: number;
   /** Which mock scenario to fall back to — the flow only ever has two. */
   scenario?: ScenarioId;
   mock?: boolean;
@@ -29,6 +32,7 @@ export async function POST(req: NextRequest) {
 
   const scenarioId: ScenarioId = body.scenario ?? "bellambi";
   const targetAnnualKwh = body.targetAnnualKwh ?? DEFAULT_TARGET_ANNUAL_KWH;
+  const targetSystemSizeKw = body.targetSystemSizeKw;
   const forceMock = body.mock === true || req.nextUrl.searchParams.get("mock") === "1";
 
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
@@ -58,11 +62,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cached = getCached(geocoded.lat, geocoded.lng);
-    if (cached) {
-      return NextResponse.json<SolarApiResponse>({ ok: true, result: cached });
-    }
-
-    const cascade = await fetchBuildingInsightsWithCascade(geocoded.lat, geocoded.lng, apiKey);
+    const cascade = cached ?? (await fetchBuildingInsightsWithCascade(geocoded.lat, geocoded.lng, apiKey));
     if (!cascade) {
       return NextResponse.json<SolarApiResponse>({
         ok: false,
@@ -70,15 +70,17 @@ export async function POST(req: NextRequest) {
         message: "Detailed roof data isn't available for this address yet.",
       });
     }
+    if (!cached) {
+      setCached(geocoded.lat, geocoded.lng, cascade);
+    }
 
     const result = normalizeBuildingInsights(
       cascade.response,
       cascade.quality,
       geocoded.formattedAddress,
-      targetAnnualKwh
+      targetAnnualKwh,
+      targetSystemSizeKw
     );
-
-    setCached(geocoded.lat, geocoded.lng, result);
 
     return NextResponse.json<SolarApiResponse>({ ok: true, result });
   } catch (err) {
