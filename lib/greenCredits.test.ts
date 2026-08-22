@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   allocateGreenCredits,
+  greenProjects,
   getGreenCreditDashboardSummary,
   sponsorFundingForCredits,
 } from "@/lib/greenCredits";
 
 describe("green credit allocation", () => {
+  it("provides a real project image for every curated project", () => {
+    expect(greenProjects).toHaveLength(3);
+    expect(greenProjects.every((project) => project.imagePath.endsWith(".webp"))).toBe(true);
+  });
+
   it("keeps the dashboard focused on balance and invested impact credits", () => {
     expect(
       getGreenCreditDashboardSummary({

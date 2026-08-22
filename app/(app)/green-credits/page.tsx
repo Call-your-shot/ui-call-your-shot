@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 const numberFormatter = new Intl.NumberFormat("en-AU");
 const currencyFormatter = new Intl.NumberFormat("en-AU", {
@@ -44,6 +45,18 @@ const projectIcons: Record<GreenProjectCategory, LucideIcon> = {
   rooftop_solar: Sun,
   habitat_restoration: Sprout,
 };
+
+const projectImagesBySlug: Record<string, string> = {
+  "illawarra-community-battery": "/green-projects/illawarra-community-battery.webp",
+  "social-housing-solar": "/green-projects/social-housing-solar.webp",
+  "coastal-habitat-restoration": "/green-projects/coastal-habitat-restoration.webp",
+};
+
+function projectImage(project: Record<string, unknown>): string {
+  const backendPath = String(project.image_path ?? "");
+  if (backendPath.startsWith("/")) return backendPath;
+  return projectImagesBySlug[String(project.slug)] ?? "/green-projects/coastal-habitat-restoration.webp";
+}
 
 export default function GreenCreditsPage() {
   const { account } = useDemo();
@@ -88,6 +101,7 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
           creditsPerSponsorDollar: Number(metadata.credits_per_sponsor_dollar ?? 100),
           impactLabel: `${project.expected_impact ?? "Verified"} ${project.impact_unit ?? "impact"}`,
           verificationMethod: String(project.verification_method),
+          imagePath: projectImage(project),
         } satisfies GreenProject;
       }));
       setActivities(payload.ledger.data.map((entry: Record<string, unknown>) => ({
@@ -323,10 +337,17 @@ function ProjectCard({
   const fullyDirected = remaining === 0;
 
   return (
-    <Card className="flex h-full flex-col overflow-hidden p-0">
-      <div className="relative overflow-hidden bg-primary-darker p-5 text-white">
-        <div className="absolute -top-12 -right-8 h-36 w-36 rounded-full bg-primary/35" />
-        <div className="relative flex items-start justify-between gap-4">
+    <Card className="group flex h-full flex-col overflow-hidden p-0">
+      <div className="relative h-52 overflow-hidden bg-primary-darker text-white">
+        <Image
+          src={project.imagePath}
+          alt={`${project.title} project in ${project.location}`}
+          fill
+          sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-primary-darker via-primary-darker/20 to-black/10" />
+        <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-4 p-5">
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/12">
             <Icon size={24} aria-hidden="true" />
           </span>
@@ -334,10 +355,12 @@ function ProjectCard({
             Sponsor-backed
           </span>
         </div>
-        <h3 className="relative mt-5 text-[18px] font-bold leading-6">{project.title}</h3>
-        <p className="relative mt-1 flex items-center gap-1.5 text-[12px] text-white/65">
-          <MapPin size={13} aria-hidden="true" /> {project.location}
-        </p>
+        <div className="absolute inset-x-0 bottom-0 p-5">
+          <h3 className="text-[18px] font-bold leading-6">{project.title}</h3>
+          <p className="mt-1 flex items-center gap-1.5 text-[12px] text-white/80">
+            <MapPin size={13} aria-hidden="true" /> {project.location}
+          </p>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col p-5">
@@ -541,6 +564,16 @@ function AllocationDialog({
           >
             <X size={18} />
           </button>
+        </div>
+
+        <div className="relative mt-5 aspect-[3/2] overflow-hidden rounded-2xl bg-grey-200">
+          <Image
+            src={project.imagePath}
+            alt={`${project.title} project in ${project.location}`}
+            fill
+            sizes="(min-width: 640px) 480px, 100vw"
+            className="object-cover"
+          />
         </div>
 
         <div className="mt-5 flex items-center justify-between rounded-xl bg-grey-100 p-4">

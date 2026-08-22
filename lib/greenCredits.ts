@@ -23,6 +23,7 @@ export interface GreenProject {
   creditsPerSponsorDollar: number;
   impactLabel: string;
   verificationMethod: string;
+  imagePath: string;
 }
 
 export interface GreenCreditActivity {
@@ -82,6 +83,7 @@ export const greenProjects: GreenProject[] = [
     creditsPerSponsorDollar: 100,
     impactLabel: "500 kWh of shared storage",
     verificationMethod: "Commissioning records and quarterly operator reports",
+    imagePath: "/green-projects/illawarra-community-battery.webp",
   },
   {
     id: "social-housing-solar",
@@ -97,6 +99,7 @@ export const greenProjects: GreenProject[] = [
     creditsPerSponsorDollar: 100,
     impactLabel: "25 kW of new solar capacity",
     verificationMethod: "Installer certificates and annual generation reports",
+    imagePath: "/green-projects/social-housing-solar.webp",
   },
   {
     id: "coastal-habitat-restoration",
@@ -112,6 +115,7 @@ export const greenProjects: GreenProject[] = [
     creditsPerSponsorDollar: 100,
     impactLabel: "10,000 m² of habitat restored",
     verificationMethod: "Geotagged planting records and independent completion review",
+    imagePath: "/green-projects/coastal-habitat-restoration.webp",
   },
 ];
 
