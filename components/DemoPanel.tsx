@@ -10,7 +10,6 @@ const jumpLinks: { label: string; href: string }[] = [
   { label: "Landing", href: "/" },
   { label: "Sign in", href: "/signin" },
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Scan bill", href: "/scan" },
   { label: "Household", href: "/household" },
   { label: "Your roof", href: "/roof" },
   { label: "Results", href: "/results" },

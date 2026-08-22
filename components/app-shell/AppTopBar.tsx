@@ -90,7 +90,7 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:block">
-            <Button href="/scan">
+            <Button href="/roof">
               <Plus size={16} aria-hidden="true" />
               New assessment
             </Button>

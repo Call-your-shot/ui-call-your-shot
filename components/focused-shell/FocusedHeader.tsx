@@ -7,7 +7,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
 const FLOW_STEPS = [
-  { path: "/scan", label: "Scan bill" },
   { path: "/household", label: "Household" },
   { path: "/roof", label: "Your roof" },
   { path: "/results", label: "Results" },

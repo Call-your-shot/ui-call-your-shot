@@ -10,12 +10,26 @@ HttpOnly demo session and call FastAPI through `BACKEND_URL`.
 
 ```text
 Browser → Next.js BFF → FastAPI → domain calculations/repositories
-                    ↘ Google Solar / Gemini (server-side only)
+                    ↘ Google Solar (server-side only)
 ```
 
 Account, property, plan, ROI, proposal, support-report, settings, and
-green-credit values come from FastAPI. Google Solar and bill extraction remain
-Next-hosted integrations because their API keys must never reach the browser.
+green-credit values come from FastAPI. Google Solar remains a Next-hosted
+integration because API keys must never reach the browser.
+
+## Frontend structure
+
+```text
+app/                 Next.js App Router pages and route handlers
+components/          Shared UI, app shells, focused-flow shells, and layouts
+lib/                 Client/server helpers, API payloads, calculations, tests
+assets/fonts/        Self-hosted Public Sans files used by next/font/local
+public/              Static product imagery and green-project assets
+```
+
+Routes use normal folder names such as `dashboard`, `plans`, `roof`, and
+`signin`. The previous parenthesized route-group folders were removed so the
+tree is easier to scan in GitHub.
 
 ## Run locally
 
@@ -23,8 +37,7 @@ Start the backend first:
 
 ```bash
 cd ../backend-call-your-shot
-source .venv/bin/activate
-uvicorn app.main:app --host 127.0.0.1 --port 8001
+python3.11 -m uvicorn app.main:app --host 127.0.0.1 --port 8001
 ```
 
 Configure and run the UI:
@@ -45,7 +58,7 @@ is the only component that should call it.
 
 The assessment flow combines:
 
-1. bill usage and household answers;
+1. property address and household answers;
 2. annual-load estimation from FastAPI;
 3. roof generation from Google Solar or a clearly labelled fallback;
 4. FastAPI Monte Carlo ROI through `/api/v1/assessments/initial`.
@@ -59,6 +72,10 @@ confidence intervals.
 Initial dynamic pricing is an assumption-based approximation. Operational
 bills use the backend's timezone-aware interval pricing engine with actual
 hourly meter data.
+
+The old bill-upload scanner route has been removed. New assessments now start
+from the property/roof flow rather than `/scan`, and there is no `/api/bill`
+route in the frontend.
 
 ## Proposal PDF
 
@@ -96,3 +113,6 @@ npm run lint
 npm test -- --run
 npm run build
 ```
+
+`npm run build` uses `next build --webpack`. The project self-hosts Public Sans,
+so builds do not need to fetch fonts from Google.
