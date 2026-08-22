@@ -6,6 +6,7 @@ import { useDemo } from "@/lib/demo-context";
 import {
   allocateGreenCredits,
   getGreenCreditActivity,
+  getGreenCreditDashboardSummary,
   getGreenCreditWallet,
   greenProjects,
   sponsorFundingForCredits,
@@ -22,7 +23,6 @@ import {
   ChevronRight,
   CircleDollarSign,
   HandHeart,
-  Leaf,
   LockKeyhole,
   MapPin,
   ShieldCheck,
@@ -31,7 +31,6 @@ import {
   Sun,
   Users,
   X,
-  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -58,7 +57,13 @@ export default function GreenCreditsPage() {
 
 function GreenCreditsExperience({ accountId }: { accountId: string }) {
   const wallet = getGreenCreditWallet(accountId);
-  const [availableCredits, setAvailableCredits] = useState(wallet.availableCredits);
+  const dashboardSummary = getGreenCreditDashboardSummary(wallet);
+  const [availableCredits, setAvailableCredits] = useState(
+    dashboardSummary.currentBalance
+  );
+  const [impactCreditsInvested, setImpactCreditsInvested] = useState(
+    dashboardSummary.impactCreditsInvested
+  );
   const [projects, setProjects] = useState(() => greenProjects.map((project) => ({ ...project })));
   const [activities, setActivities] = useState<GreenCreditActivity[]>(() =>
     getGreenCreditActivity(accountId).map((activity) => ({ ...activity }))
@@ -71,8 +76,6 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
   } | null>(null);
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
-  const sponsorPotential = sponsorFundingForCredits(availableCredits, 100);
-
   function completeAllocation(project: GreenProject, requestedCredits: number) {
     const result = allocateGreenCredits({
       requestedCredits,
@@ -82,6 +85,9 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
     });
 
     setAvailableCredits(result.remainingWalletCredits);
+    setImpactCreditsInvested(
+      (current) => current + result.allocatedCredits
+    );
     setProjects((current) =>
       current.map((item) =>
         item.id === project.id
@@ -148,8 +154,11 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
         </div>
       )}
 
-      <section className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <Card className="relative overflow-hidden bg-primary-darker p-0 text-white lg:col-span-8">
+      <section
+        aria-label="Green credit balance and impact"
+        className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2"
+      >
+        <Card className="relative overflow-hidden bg-primary-darker p-0 text-white">
           <div className="pointer-events-none absolute -top-16 -right-10 h-56 w-56 rounded-full bg-primary/35" />
           <div className="pointer-events-none absolute -right-10 -bottom-24 h-52 w-52 rounded-full border-[28px] border-white/5" />
           <div className="relative p-6 sm:p-8">
@@ -161,9 +170,8 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
             </p>
             <p className="mt-2 text-[15px] font-semibold text-white/90">green credits</p>
             <p className="mt-5 max-w-lg text-[13px] leading-6 text-white/70">
-              At the current campaign rate, your choices can unlock up to{" "}
-              <strong className="text-white">{currencyFormatter.format(sponsorPotential)}</strong>{" "}
-              of already committed sponsor funding.
+              Your current balance is ready to direct into a verified,
+              sponsor-backed project.
             </p>
             <a
               href="#projects"
@@ -174,43 +182,24 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
           </div>
         </Card>
 
-        <Card className="lg:col-span-4">
-          <div className="flex items-center justify-between">
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-lighter text-primary-darker">
-              <Leaf size={22} aria-hidden="true" />
-            </span>
-            <span className="rounded-md bg-grey-200 px-2 py-1 text-[11px] font-bold text-grey-600">
-              1 verified kWh = 1 credit pool
-            </span>
+        <Card className="relative overflow-hidden p-0">
+          <div className="pointer-events-none absolute -right-14 -bottom-20 h-48 w-48 rounded-full bg-primary-lighter/70" />
+          <div className="relative p-6 sm:p-8">
+            <div className="flex items-center gap-2 text-[12px] font-bold tracking-wider text-primary-darker uppercase">
+              <HandHeart size={16} aria-hidden="true" /> Impact credits invested
+            </div>
+            <p className="mt-3 text-[42px] leading-none font-bold tracking-tight tabular-nums text-grey-900 sm:text-[52px]">
+              {numberFormatter.format(impactCreditsInvested)}
+            </p>
+            <p className="mt-2 text-[15px] font-semibold text-grey-700">
+              credits invested
+            </p>
+            <p className="mt-5 max-w-lg text-[13px] leading-6 text-grey-600">
+              Permanently directed to community projects that report their
+              verified environmental impact.
+            </p>
           </div>
-          <h2 className="text-h3 mt-5">Your reward summary</h2>
-          <dl className="mt-4 divide-y divide-dashed divide-line">
-            <SummaryRow label="Lifetime earned" value={`${numberFormatter.format(wallet.lifetimeEarnedCredits)} cr`} />
-            <SummaryRow label="Already allocated" value={`${numberFormatter.format(wallet.lifetimeAllocatedCredits)} cr`} />
-            <SummaryRow label="Verified solar behind rewards" value={`${numberFormatter.format(wallet.verifiedSolarKwh)} kWh`} />
-          </dl>
         </Card>
-      </section>
-
-      <section className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MiniStat
-          icon={Zap}
-          label="Credits earned"
-          value={numberFormatter.format(wallet.lifetimeEarnedCredits)}
-          detail="From finalised meter readings"
-        />
-        <MiniStat
-          icon={HandHeart}
-          label="Credits directed"
-          value={numberFormatter.format(wallet.lifetimeAllocatedCredits)}
-          detail="Permanently allocated"
-        />
-        <MiniStat
-          icon={CircleDollarSign}
-          label="Sponsor funding unlocked"
-          value={currencyFormatter.format(wallet.lifetimeAllocatedCredits / 100)}
-          detail="At $1 per 100 credits"
-        />
       </section>
 
       <section id="projects" className="mt-10 scroll-mt-24">
@@ -293,38 +282,6 @@ function GreenCreditsExperience({ accountId }: { accountId: string }) {
         />
       )}
     </div>
-  );
-}
-
-function SummaryRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
-      <dt className="text-[13px] text-grey-600">{label}</dt>
-      <dd className="text-[13px] font-bold tabular-nums text-grey-900">{value}</dd>
-    </div>
-  );
-}
-
-function MiniStat({
-  icon: Icon,
-  label,
-  value,
-  detail,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <Card className="p-5">
-      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-lighter text-primary-darker">
-        <Icon size={19} aria-hidden="true" />
-      </span>
-      <p className="mt-4 text-[12px] font-semibold tracking-wide text-grey-500 uppercase">{label}</p>
-      <p className="mt-1 text-[24px] font-bold tabular-nums text-grey-900">{value}</p>
-      <p className="text-small mt-1">{detail}</p>
-    </Card>
   );
 }
 

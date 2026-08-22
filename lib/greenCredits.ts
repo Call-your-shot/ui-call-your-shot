@@ -34,6 +34,11 @@ export interface GreenCreditActivity {
   credits: number;
 }
 
+export interface GreenCreditDashboardSummary {
+  currentBalance: number;
+  impactCreditsInvested: number;
+}
+
 export interface AllocationResult {
   allocatedCredits: number;
   partial: boolean;
@@ -181,6 +186,15 @@ export function getGreenCreditWallet(accountId: string): GreenCreditWallet {
 
 export function getGreenCreditActivity(accountId: string): GreenCreditActivity[] {
   return activityByAccount[accountId] ?? activityByAccount.priya;
+}
+
+export function getGreenCreditDashboardSummary(
+  wallet: GreenCreditWallet
+): GreenCreditDashboardSummary {
+  return {
+    currentBalance: wallet.availableCredits,
+    impactCreditsInvested: wallet.lifetimeAllocatedCredits,
+  };
 }
 
 export function sponsorFundingForCredits(
