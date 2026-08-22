@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Check, Copy, Download, Loader2, Mail, Repeat } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import { useDemo } from "@/lib/demo-context";
 import type { BackendProposal, InitialAssessment } from "@/lib/backend/types";
 
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
@@ -18,6 +19,8 @@ const guarantees = [
 
 export default function ProposalPage() {
   const router = useRouter();
+  const params = useParams<{ id: string }>();
+  const { refresh } = useDemo();
   const [assessment, setAssessment] = useState<InitialAssessment | null>(null);
   const [proposal, setProposal] = useState<BackendProposal | null>(null);
   const [email, setEmail] = useState("");
@@ -28,6 +31,22 @@ export default function ProposalPage() {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const id = query.get("assessmentId") ?? window.sessionStorage.getItem("sunshare-latest-assessment-id");
+    const proposalId = params.id;
+    if (!query.get("assessmentId") && proposalId && proposalId !== "plan-pending") {
+      fetch(`/api/proposals/${encodeURIComponent(proposalId)}`)
+        .then(async (response) => {
+          const payload = await response.json();
+          if (!response.ok) throw new Error(payload.message ?? "Could not load proposal");
+          setProposal(payload as BackendProposal);
+          if (!payload.assessmentId) throw new Error("This proposal has no saved assessment.");
+          const assessmentResponse = await fetch(`/api/assessments/${encodeURIComponent(payload.assessmentId)}`);
+          const assessmentPayload = await assessmentResponse.json();
+          if (!assessmentResponse.ok) throw new Error(assessmentPayload.message ?? "Could not load assessment");
+          setAssessment(assessmentPayload as InitialAssessment);
+        })
+        .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load proposal"));
+      return;
+    }
     if (!id) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- assessment selection comes from navigation/session state
       setError("No saved assessment was selected for this proposal.");
@@ -40,7 +59,7 @@ export default function ProposalPage() {
         setAssessment(payload as InitialAssessment);
       })
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Could not load assessment"));
-  }, []);
+  }, [params.id]);
 
   async function sendProposal() {
     if (!assessment || !email) return;
@@ -58,6 +77,7 @@ export default function ProposalPage() {
       return;
     }
     setProposal(payload as BackendProposal);
+    await refresh();
     setSendOpen(false);
   }
 
