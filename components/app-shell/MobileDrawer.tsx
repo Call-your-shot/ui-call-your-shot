@@ -84,7 +84,7 @@ export default function MobileDrawer({
           <Link href="/dashboard" onClick={onClose} className="flex items-center gap-2.5">
             <Logo size={28} />
             <span className="text-[18px] font-bold tracking-tight text-grey-900">
-              SunShare
+              CYS Solar
             </span>
           </Link>
           <button

@@ -96,11 +96,17 @@ html {
   overflow-x: hidden;
 }
 
+/* overflow-x set on both html and body (rather than just html) turns body
+ * into a second, nested scroll container — per the CSS overflow spec, a
+ * non-"visible" overflow-x with no explicit overflow-y forces overflow-y to
+ * "auto" too. With both elements scrollable, `position: sticky` headers
+ * inside body stick relative to the wrong scroll container and just scroll
+ * out of view. One overflow-x: hidden (on html) is enough to stop
+ * horizontal scroll app-wide. */
 body {
   background: var(--color-surface-alt);
   color: var(--color-text);
   font-family: var(--font-sans);
-  overflow-x: hidden;
 }
 
 /* ---------------------------------------------------------------------- */

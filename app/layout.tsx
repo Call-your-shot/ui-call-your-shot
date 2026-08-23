@@ -11,9 +11,9 @@ const publicSans = Public_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "SunShare — Rooftop solar for renters",
+  title: "CYS Solar — Rooftop solar for renters",
   description:
-    "SunShare lets tenants buy solar power from their landlord at half the grid rate, until the system pays for itself.",
+    "CYS Solar lets tenants buy solar power from their landlord at half the grid rate, until the system pays for itself.",
 };
 
 export const viewport: Viewport = {

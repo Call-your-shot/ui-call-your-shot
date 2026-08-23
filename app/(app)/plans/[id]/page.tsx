@@ -5,12 +5,14 @@ import Card from "@/components/ui/Card";
 import ProgressRing from "@/components/ui/ProgressRing";
 import StatBlock from "@/components/ui/StatBlock";
 import { useDemo } from "@/lib/demo-context";
+import { useSignedInEmail } from "@/lib/session";
 import { formatPropertyAddress, getTenancy, totalSavingsToDate } from "@/lib/accounts";
 import { formatDate } from "@/lib/mockData";
+import type { PlanDetailResponse } from "@/app/api/plans/[id]/route";
 import { cn } from "@/lib/utils";
 import { Check, Download, MessageCircle } from "lucide-react";
 import { notFound, useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function formatCurrency(v: number, cents = false) {
   return new Intl.NumberFormat("en-AU", {
@@ -35,16 +37,54 @@ type Tab = (typeof TABS)[number];
 export default function PlanDetailPage() {
   const params = useParams<{ id: string }>();
   const { account, hydrated } = useDemo();
-  const tenancy = getTenancy(account, params.id);
+  const signedInEmail = useSignedInEmail();
+  const localTenancy = getTenancy(account, params.id);
+  const [remotePlan, setRemotePlan] = useState<PlanDetailResponse | null>(null);
+  const [remoteChecked, setRemoteChecked] = useState(false);
   const [tab, setTab] = useState<Tab>("Overview");
   const [messageOpen, setMessageOpen] = useState(false);
   const [messageText, setMessageText] = useState("");
   const [messageSent, setMessageSent] = useState(false);
 
+  useEffect(() => {
+    // Nothing to fetch in demo mode — the render below only reads
+    // `remotePlan`/`remoteChecked` when `signedInEmail` is set, so there's
+    // no stale state to clear here.
+    if (!signedInEmail) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- starts the loading flag for the fetch kicked off right below
+    setRemoteChecked(false);
+    fetch(`/api/plans/${params.id}?email=${encodeURIComponent(signedInEmail)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: PlanDetailResponse | null) => {
+        if (!cancelled) setRemotePlan(data);
+      })
+      .catch(() => {
+        if (!cancelled) setRemotePlan(null);
+      })
+      .finally(() => {
+        if (!cancelled) setRemoteChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedInEmail, params.id]);
+
   // Wait for the demo account to sync from localStorage before treating a
   // miss as a real 404 — otherwise a direct link into a non-default demo
   // account's plan briefly checks against the default account first.
   if (!hydrated) return null;
+
+  // Signed in: pulled live from the backend via /api/plans/[id]. Demo mode
+  // (no signed-in email): the local mock account, matching the existing
+  // account-switcher demo panel.
+  const tenancy: PlanDetailResponse | undefined = signedInEmail
+    ? (remotePlan ?? undefined)
+    : localTenancy
+      ? { ...localTenancy, leaveRequest: localTenancy.leaveRequest ?? null }
+      : undefined;
+
+  if (signedInEmail && !remoteChecked) return null;
   if (!tenancy) return notFound();
 
   const percentRepaid =
@@ -128,7 +168,7 @@ export default function PlanDetailPage() {
             <Card>
               <h2 className="text-h3">{tenancy.landlordName}</h2>
               <div className="mt-3 flex flex-col gap-2 text-[14px]">
-                <Row label="Contact" value="Message via SunShare" />
+                <Row label="Contact" value="Message via CYS Solar" />
                 {tenancy.propertyManager && <Row label="Property manager" value={tenancy.propertyManager} />}
                 <Row
                   label="Plan agreed"

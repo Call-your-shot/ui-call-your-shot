@@ -4,9 +4,21 @@ import Button from "@/components/ui/Button";
 import { useDemo } from "@/lib/demo-context";
 import { emailInitials, useSignedInEmail } from "@/lib/session";
 import { cn } from "@/lib/utils";
+import type { FrontendNotification, NotificationsApiResponse } from "@/app/api/notifications/route";
 import { Bell, Menu, Plus, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+
+function timeAgo(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime();
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
 
 interface PageMeta {
   title: string;
@@ -40,6 +52,7 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const [scrolled, setScrolled] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
+  const [notifications, setNotifications] = useState<FrontendNotification[]>([]);
 
   useEffect(() => {
     function onScroll() {
@@ -58,10 +71,37 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
     return () => document.removeEventListener("click", onClick);
   }, []);
 
+  // Demo mode surfaces its two hardcoded conditions below instead — real
+  // notifications (leave requests, proposal responses, etc.) only exist for
+  // signed-in accounts on the real backend.
+  useEffect(() => {
+    // Nothing to fetch in demo mode — the render below only reads
+    // `notifications` when `signedInEmail` is set, so there's no stale
+    // state to clear here.
+    if (!signedInEmail) return;
+    let cancelled = false;
+    fetch(`/api/notifications?email=${encodeURIComponent(signedInEmail)}`)
+      .then((res) => res.json())
+      .then((data: NotificationsApiResponse) => {
+        if (!cancelled) setNotifications(data.notifications ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setNotifications([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Re-fetches on every navigation so acting on a notification elsewhere
+    // (e.g. approving a leave request) clears its badge here shortly after.
+  }, [signedInEmail, pathname]);
+
   const pendingTenancy = account.tenancies.find(
     (t) => t.status === "awaiting_landlord" || t.status === "proposal_sent"
   );
   const propertyWithAlert = account.ownedProperties.find((p) => p.performanceAlert);
+  const hasUnread = signedInEmail
+    ? notifications.some((n) => !n.read)
+    : Boolean(pendingTenancy || propertyWithAlert);
 
   return (
     <header
@@ -116,7 +156,7 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
               className="relative flex h-10 w-10 items-center justify-center rounded-full text-grey-600 hover:bg-grey-200"
             >
               <Bell size={19} />
-              {(pendingTenancy || propertyWithAlert) && (
+              {hasUnread && (
                 <span
                   className="absolute top-2.5 right-2.5 h-2 w-2 rounded-full bg-error"
                   aria-hidden="true"
@@ -128,18 +168,41 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
                 <p className="mb-2 text-[12px] font-bold tracking-wider text-grey-500 uppercase">
                   Notifications
                 </p>
-                {!pendingTenancy && !propertyWithAlert && (
-                  <p className="text-small px-1 py-2">Nothing new right now.</p>
-                )}
-                {pendingTenancy && (
-                  <div className="mb-2 rounded-lg bg-warning-light p-3 text-[13px] text-grey-800 last:mb-0">
-                    {pendingTenancy.landlordName} hasn&apos;t responded to your proposal yet.
-                  </div>
-                )}
-                {propertyWithAlert && (
-                  <div className="rounded-lg bg-error-light p-3 text-[13px] text-grey-800">
-                    {propertyWithAlert.performanceAlert?.message}
-                  </div>
+                {signedInEmail ? (
+                  notifications.length === 0 ? (
+                    <p className="text-small px-1 py-2">Nothing new right now.</p>
+                  ) : (
+                    <div className="flex max-h-80 flex-col gap-2 overflow-y-auto">
+                      {notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={cn(
+                            "rounded-lg p-3 text-[13px] text-grey-800",
+                            n.actionRequired ? "bg-warning-light" : "bg-grey-100"
+                          )}
+                        >
+                          <p>{n.message}</p>
+                          <p className="mt-1 text-[11px] text-grey-500">{timeAgo(n.createdAt)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                ) : (
+                  <>
+                    {!pendingTenancy && !propertyWithAlert && (
+                      <p className="text-small px-1 py-2">Nothing new right now.</p>
+                    )}
+                    {pendingTenancy && (
+                      <div className="mb-2 rounded-lg bg-warning-light p-3 text-[13px] text-grey-800 last:mb-0">
+                        {pendingTenancy.landlordName} hasn&apos;t responded to your proposal yet.
+                      </div>
+                    )}
+                    {propertyWithAlert && (
+                      <div className="rounded-lg bg-error-light p-3 text-[13px] text-grey-800">
+                        {propertyWithAlert.performanceAlert?.message}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}

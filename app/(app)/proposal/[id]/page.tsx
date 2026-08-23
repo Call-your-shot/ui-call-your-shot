@@ -173,7 +173,7 @@ export default function ProposalPage() {
               Energy Regulator&apos;s embedded network exemption for
               small-scale, single-premises solar sharing agreements. It is not
               a retail electricity sale and does not require a retailer
-              authorisation. SunShare provides this document for
+              authorisation. CYS Solar provides this document for
               informational purposes and recommends independent legal advice
               before signing.
             </p>
@@ -234,7 +234,7 @@ export default function ProposalPage() {
               </div>
               <button
                 type="button"
-                onClick={() => navigator.clipboard?.writeText(`https://sunshare.app/p/${plan.id}`)}
+                onClick={() => navigator.clipboard?.writeText(`https://cyssolar.app/p/${plan.id}`)}
                 className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-3 py-2 text-[12px] font-medium text-ink"
               >
                 <Copy size={13} aria-hidden="true" /> Copy shareable link

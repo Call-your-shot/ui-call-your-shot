@@ -1,10 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import HouseIllustration from "@/components/civic/HouseIllustration";
 import { useDemo } from "@/lib/demo-context";
-import { formatPropertyAddress, type OwnedProperty } from "@/lib/accounts";
+import { useSignedInEmail } from "@/lib/session";
+import { type OwnedProperty } from "@/lib/accounts";
+import { formatAddress } from "@/lib/mockData";
+import type { PropertiesApiResponse, PropertyListItem } from "@/app/api/properties/route";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
@@ -25,15 +29,63 @@ const occupancyClasses: Record<OwnedProperty["occupancyStatus"], string> = {
   pending_invitation: "bg-warning-light text-warning",
 };
 
+function ownedPropertyToListItem(p: OwnedProperty): PropertyListItem {
+  return {
+    id: p.id,
+    address: p.address,
+    imageVariant: p.imageVariant,
+    occupancyStatus: p.occupancyStatus,
+    systemSizeKw: p.system?.sizeKw ?? null,
+    currentTenantName: p.currentTenant?.name ?? null,
+    monthlyIncome: p.monthlyIncome,
+    balanceOutstanding: p.balanceOutstanding,
+  };
+}
+
 export default function PropertiesPage() {
   const { account } = useDemo();
+  const signedInEmail = useSignedInEmail();
+  const [remoteProperties, setRemoteProperties] = useState<PropertyListItem[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Nothing to fetch in demo mode — the render below only reads
+    // `remoteProperties` when `signedInEmail` is set, so there's no stale
+    // state to clear here.
+    if (!signedInEmail) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- starts the loading flag for the fetch kicked off right below
+    setLoading(true);
+    fetch(`/api/properties?email=${encodeURIComponent(signedInEmail)}`)
+      .then((res) => res.json())
+      .then((data: PropertiesApiResponse) => {
+        if (!cancelled) setRemoteProperties(data.properties ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteProperties([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedInEmail]);
+
+  // Signed in: pulled live from the backend via /api/properties (empty
+  // while the fetch is in flight). Demo mode (no signed-in email): the
+  // local mock account, matching the existing account-switcher demo panel.
+  const properties: PropertyListItem[] = signedInEmail
+    ? (remoteProperties ?? [])
+    : account.ownedProperties.map(ownedPropertyToListItem);
+  const stillLoading = Boolean(signedInEmail) && loading && remoteProperties === null;
 
   return (
     <div>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-h1">My properties</h1>
-          <p className="text-body mt-1">Every property you lease out with SunShare.</p>
+          <p className="text-body mt-1">Every property you lease out with CYS Solar.</p>
         </div>
         <Button href="/properties/new" className="hidden sm:inline-flex">
           <Plus size={16} aria-hidden="true" />
@@ -41,11 +93,15 @@ export default function PropertiesPage() {
         </Button>
       </div>
 
-      {account.ownedProperties.length === 0 ? (
+      {stillLoading ? (
+        <Card className="mt-6 flex items-center justify-center py-10">
+          <p className="text-body">Loading your properties…</p>
+        </Card>
+      ) : properties.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="mt-6 flex flex-col gap-4">
-          {account.ownedProperties.map((p) => (
+          {properties.map((p) => (
             <PropertyRow key={p.id} property={p} />
           ))}
         </div>
@@ -59,7 +115,7 @@ export default function PropertiesPage() {
   );
 }
 
-function PropertyRow({ property }: { property: OwnedProperty }) {
+function PropertyRow({ property }: { property: PropertyListItem }) {
   return (
     <Link href={`/properties/${property.id}`}>
       <Card className="flex items-stretch gap-4 p-4">
@@ -75,10 +131,10 @@ function PropertyRow({ property }: { property: OwnedProperty }) {
           >
             {occupancyLabel[property.occupancyStatus]}
           </span>
-          <p className="text-h3 truncate">{formatPropertyAddress(property.address)}</p>
+          <p className="text-h3 truncate">{formatAddress(property.address)}</p>
           <p className="text-small">
-            {property.system ? `${property.system.sizeKw} kW system` : "No system yet"}
-            {property.currentTenant ? ` · ${property.currentTenant.name}` : ""}
+            {property.systemSizeKw != null ? `${property.systemSizeKw} kW system` : "No system yet"}
+            {property.currentTenantName ? ` · ${property.currentTenantName}` : ""}
           </p>
         </div>
         <div className="hidden shrink-0 flex-col items-end justify-center gap-0.5 sm:flex">

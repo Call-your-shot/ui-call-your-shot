@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// SunShare mock data. Everything the UI reads lives here — no backend calls.
+// CYS Solar mock data. Everything the UI reads lives here — no backend calls.
 // ---------------------------------------------------------------------------
 
 export type UserRole = "tenant" | "landlord";

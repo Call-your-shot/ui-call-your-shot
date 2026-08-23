@@ -35,7 +35,7 @@ export default function SignInPage() {
     <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 py-14">
       <Logo size={40} />
 
-      <h1 className="text-h1 mt-6 text-ink">Sign in to SunShare</h1>
+      <h1 className="text-h1 mt-6 text-ink">Sign in to CYS Solar</h1>
       <p className="text-body mt-2 text-muted">
         Enter your email to continue — no password needed.
       </p>
@@ -55,6 +55,16 @@ export default function SignInPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full bg-transparent text-[16px] text-ink outline-none placeholder:text-muted"
           />
+        </div>
+      </div>
+
+      <div className="mt-8">
+        <label htmlFor="email" className="mb-1.5 block text-[14px] font-semibold text-ink">
+          Password
+        </label>
+        <div className="flex items-center gap-2.5 rounded-lg border border-line bg-surface px-4 py-3.5 focus-within:border-primary">
+          <input type="password"
+            className="w-full bg-transparent text-[16px] text-ink outline-none placeholder:text-muted"/>
         </div>
       </div>
 

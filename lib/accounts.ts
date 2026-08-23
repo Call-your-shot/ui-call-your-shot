@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Account model for SunShare.
+// Account model for CYS Solar.
 //
 // Role is a capability, not a mode: an Account simply has zero or more
 // Tenancies (properties it rents) and zero or more OwnedProperties
@@ -164,7 +164,10 @@ export function getOwnedProperty(account: Account, propertyId: string): OwnedPro
   return account.ownedProperties.find((p) => p.id === propertyId);
 }
 
-export function totalSavingsToDate(tenancy: Tenancy): number {
+/** Takes just the `monthly` field rather than a full `Tenancy` so it also
+ * accepts the API's plan-detail response shape, which mirrors `Tenancy`
+ * but types `leaveRequest` as nullable rather than optional. */
+export function totalSavingsToDate(tenancy: { monthly: MonthlyUsageRecord[] }): number {
   return tenancy.monthly.reduce((sum, m) => sum + m.savingsDollars, 0);
 }
 

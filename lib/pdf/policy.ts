@@ -1,4 +1,4 @@
-// Standard contract parameters applied to every SunShare agreement.
+// Standard contract parameters applied to every CYS Solar agreement.
 // Unlike the financial figures in lib/pdf/data.ts, these are fixed product
 // policy, not per-plan data — centralised here so they're set once, not
 // scattered through the clause text.

@@ -149,8 +149,10 @@ export default function HouseholdPage() {
       // system on /roof; the local estimate above only supplies the $/rate
       // figures, which the backend doesn't produce.
       estimatedAnnualKwh: annualLoad.estimatedAnnualUsageKwh,
+      estimatedAnnualKwhSource: annualLoad.source,
       estimatedAnnualBillDollars: estimate?.estimatedAnnualBillDollars ?? flow.estimatedAnnualBillDollars,
       ratePerKwhCents: estimate?.ratePerKwhCents ?? flow.ratePerKwhCents,
+      rateSource: estimate?.rateSource ?? flow.rateSource,
     });
     router.push("/roof");
   }
@@ -162,10 +164,10 @@ export default function HouseholdPage() {
 
   // Avoids briefly rendering the wrong (season-independent) step list before
   // sessionStorage has been read.
-  if (!hydrated) return <div className="flex min-h-dvh flex-col" />;
+  if (!hydrated) return <div className="flex flex-1 flex-col" />;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="flex w-full flex-1 flex-col pt-4">
         <h1 className="text-h1 text-ink">About your household</h1>
         <div className="mt-4">

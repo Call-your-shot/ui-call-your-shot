@@ -151,7 +151,7 @@ export default function ScanPage() {
     !!billingPeriodEnd;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="flex w-full flex-1 flex-col pt-4 pb-8">
         <h1 className="text-h1 text-ink">Scan your bill</h1>
 

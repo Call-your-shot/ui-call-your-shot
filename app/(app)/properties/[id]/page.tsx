@@ -5,12 +5,15 @@ import Card from "@/components/ui/Card";
 import Callout from "@/components/ui/Callout";
 import StatBlock from "@/components/ui/StatBlock";
 import { useDemo } from "@/lib/demo-context";
+import { useSignedInEmail } from "@/lib/session";
 import { formatPropertyAddress, getOwnedProperty } from "@/lib/accounts";
 import { formatDate } from "@/lib/mockData";
+import type { PropertyDetailResponse } from "@/app/api/properties/[id]/route";
+import type { ApproveLeaveRequestApiResponse } from "@/app/api/properties/[id]/leave-request/approve/route";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Mail, MessageCircle, UserPlus, Zap } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, MessageCircle, UserPlus, Zap } from "lucide-react";
 import { notFound, useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -32,32 +35,96 @@ type Tab = (typeof TABS)[number];
 export default function PropertyDetailPage() {
   const params = useParams<{ id: string }>();
   const { account, hydrated, refresh } = useDemo();
-  const property = getOwnedProperty(account, params.id);
+  const signedInEmail = useSignedInEmail();
+  const localProperty = getOwnedProperty(account, params.id);
+  const [remoteProperty, setRemoteProperty] = useState<PropertyDetailResponse | null>(null);
+  const [remoteChecked, setRemoteChecked] = useState(false);
   const [tab, setTab] = useState<Tab>("Overview");
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [generationView, setGenerationView] = useState<"daily" | "monthly">("daily");
+  const [approving, setApproving] = useState(false);
+  const [approveError, setApproveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Nothing to fetch in demo mode — the render below only reads
+    // `remoteProperty`/`remoteChecked` when `signedInEmail` is set, so
+    // there's no stale state to clear here.
+    if (!signedInEmail) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- starts the loading flag for the fetch kicked off right below
+    setRemoteChecked(false);
+    fetch(`/api/properties/${params.id}?email=${encodeURIComponent(signedInEmail)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: PropertyDetailResponse | null) => {
+        if (!cancelled) setRemoteProperty(data);
+      })
+      .catch(() => {
+        if (!cancelled) setRemoteProperty(null);
+      })
+      .finally(() => {
+        if (!cancelled) setRemoteChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedInEmail, params.id]);
 
   // See the matching guard in plans/[id]/page.tsx for why this waits on
   // `hydrated` before treating a miss as a real 404.
   if (!hydrated) return null;
+
+  // Signed in: pulled live from the backend via /api/properties/[id]. Demo
+  // mode (no signed-in email): the local mock account, matching the
+  // existing account-switcher demo panel.
+  const property = signedInEmail ? (remoteProperty ?? undefined) : localProperty;
+
+  if (signedInEmail && !remoteChecked) return null;
   if (!property) return notFound();
 
   const percentRecovered =
     property.totalInvested > 0 ? Math.round((property.totalEarned / property.totalInvested) * 100) : 0;
 
+  // Mutates the property record in place and calls the demo context's
+  // `refresh()` — that only makes sense for the local mock account, so this
+  // stays demo-mode-only for now (the invite endpoint does exist on the
+  // backend, but wiring it is separate follow-up work). The button that
+  // triggers this is hidden below when signed in.
   function sendInvite() {
-    if (!property || !inviteEmail.trim()) return;
-    property.pendingInvitationEmail = inviteEmail.trim();
-    property.occupancyStatus = "pending_invitation";
+    if (signedInEmail || !localProperty || !inviteEmail.trim()) return;
+    localProperty.pendingInvitationEmail = inviteEmail.trim();
+    localProperty.occupancyStatus = "pending_invitation";
     refresh();
     setInviteOpen(false);
     setInviteEmail("");
   }
 
-  function acknowledgeLeaveRequest() {
-    if (!property?.leaveRequest) return;
-    property.leaveRequest.status = "acknowledged";
+  async function acknowledgeLeaveRequest() {
+    if (signedInEmail) {
+      setApproveError(null);
+      setApproving(true);
+      try {
+        const res = await fetch(`/api/properties/${property!.id}/leave-request/approve`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: signedInEmail }),
+        });
+        const data = (await res.json()) as ApproveLeaveRequestApiResponse;
+        if (!data.ok) {
+          setApproveError(data.message);
+          return;
+        }
+        setRemoteProperty(data.property);
+      } catch {
+        setApproveError("Couldn't reach the server — check your connection and try again.");
+      } finally {
+        setApproving(false);
+      }
+      return;
+    }
+
+    if (!localProperty?.leaveRequest) return;
+    localProperty.leaveRequest.status = "acknowledged";
     refresh();
   }
 
@@ -172,7 +239,7 @@ export default function PropertyDetailPage() {
             </Card>
 
             <div className="flex flex-wrap gap-3">
-              {!inviteOpen ? (
+              {signedInEmail ? null : !inviteOpen ? (
                 <Button variant="secondary" onClick={() => setInviteOpen(true)}>
                   <UserPlus size={16} aria-hidden="true" />
                   Invite new tenant
@@ -222,13 +289,25 @@ export default function PropertyDetailPage() {
                 </div>
 
                 {property.leaveRequest.status === "pending" ? (
-                  <div className="mt-4 flex gap-3">
-                    {/* eslint-disable-next-line react-hooks/immutability -- deliberate mock-store mutation, see demo-context.tsx's `refresh` doc comment */}
-                    <Button onClick={acknowledgeLeaveRequest}>Acknowledge</Button>
-                    <Button variant="secondary">
-                      <MessageCircle size={16} aria-hidden="true" />
-                      Message tenant
-                    </Button>
+                  <div className="mt-4 flex flex-col gap-3">
+                    {approveError && <Callout variant="warning">{approveError}</Callout>}
+                    <div className="flex gap-3">
+                      {/* eslint-disable-next-line react-hooks/immutability -- demo mode deliberately mutates the mock store in place, see demo-context.tsx's `refresh` doc comment; signed-in mode posts to the real backend instead */}
+                      <Button disabled={approving} onClick={acknowledgeLeaveRequest}>
+                        {approving ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                            Acknowledging…
+                          </>
+                        ) : (
+                          "Acknowledge"
+                        )}
+                      </Button>
+                      <Button variant="secondary">
+                        <MessageCircle size={16} aria-hidden="true" />
+                        Message tenant
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <div className="mt-4">
@@ -237,10 +316,12 @@ export default function PropertyDetailPage() {
                       balance stays with the property — invite a new tenant when
                       you&apos;re ready.
                     </Callout>
-                    <Button variant="secondary" className="mt-3" onClick={() => setTab("Tenants")}>
-                      <UserPlus size={16} aria-hidden="true" />
-                      Invite new tenant
-                    </Button>
+                    {!signedInEmail && (
+                      <Button variant="secondary" className="mt-3" onClick={() => setTab("Tenants")}>
+                        <UserPlus size={16} aria-hidden="true" />
+                        Invite new tenant
+                      </Button>
+                    )}
                   </div>
                 )}
               </Card>

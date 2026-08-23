@@ -96,7 +96,7 @@ export function PartB({ data, showWatermark }: { data: ProposalPdfData; showWate
           for Solar Energy from Completion onward, under clause 14.
         </Definition>
         <Definition term="Platform">
-          The SunShare web portal through which both parties view metered data and the Recovery
+          The CYS Solar web portal through which both parties view metered data and the Recovery
           Balance.
         </Definition>
       </View>

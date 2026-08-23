@@ -30,11 +30,11 @@ export default function FocusedHeader() {
           <div className="flex shrink-0 items-center gap-2">
             <Logo size={26} />
             <span className="hidden text-[16px] font-bold text-primary sm:inline">
-              SunShare
+              CYS Solar
             </span>
           </div>
 
-          <div className="min-w-0 flex-1 sm:max-w-md">
+          <div className="min-w-0 flex-1">
             <StepIndicator
               steps={FLOW_STEPS.map((s) => s.label)}
               current={currentIndex}

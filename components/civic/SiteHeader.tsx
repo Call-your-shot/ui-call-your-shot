@@ -45,7 +45,7 @@ export default function SiteHeader() {
           <Link href="/" className="flex items-center gap-2.5">
             <Logo />
             <span className="text-[19px] font-bold tracking-tight text-primary">
-              SunShare
+              CYS Solar
             </span>
           </Link>
 
@@ -85,7 +85,7 @@ export default function SiteHeader() {
               onClick={() => setMenuOpen(false)}
             >
               <span className="text-[19px] font-bold tracking-tight text-white">
-                SunShare
+                CYS Solar
               </span>
             </Link>
             <button

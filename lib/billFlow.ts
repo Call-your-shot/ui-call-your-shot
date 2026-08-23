@@ -34,8 +34,28 @@ export interface BillFlowState {
    * locally. Drives panel selection on /roof via Google Solar's own
    * annual-kWh-target matching. */
   estimatedAnnualKwh: number | null;
+  /** Whether estimatedAnnualKwh came from the real sizing backend or a
+   * local fallback — carried through to /create-proposal's
+   * consumption.systemSizeSource. */
+  estimatedAnnualKwhSource: "backend" | "fallback" | null;
   estimatedAnnualBillDollars: number | null;
   ratePerKwhCents: number | null;
+  /** Whether ratePerKwhCents came from the bill's own total, or a regional
+   * default — carried through to /create-proposal's consumption.rateSource. */
+  rateSource: "bill" | "wollongong-default" | null;
+
+  /** The system Google Solar (or the mock/manual fallback) actually fitted
+   * on the roof, captured on /roof — carried through to /create-proposal's
+   * `system` block. Null until /roof has resolved a result. */
+  solarSystem: {
+    panelCount: number;
+    panelWatts: number;
+    systemSizeKw: number;
+    estimatedAnnualAcKwh: number;
+    source: "google" | "mock";
+    orientation: string;
+    pitchDegrees: number;
+  } | null;
 }
 
 export const emptyBillFlow: BillFlowState = {
@@ -59,8 +79,12 @@ export const emptyBillFlow: BillFlowState = {
   hotWaterHours: null,
 
   estimatedAnnualKwh: null,
+  estimatedAnnualKwhSource: null,
   estimatedAnnualBillDollars: null,
   ratePerKwhCents: null,
+  rateSource: null,
+
+  solarSystem: null,
 };
 
 const STORAGE_KEY = "sunshare-bill-flow";

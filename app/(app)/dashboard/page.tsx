@@ -75,7 +75,7 @@ function WelcomeEmptyState() {
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary-lighter text-primary-darker">
           <Home size={26} aria-hidden="true" />
         </span>
-        <h2 className="text-h2 mt-4">Welcome to SunShare</h2>
+        <h2 className="text-h2 mt-4">Welcome to CYS Solar</h2>
         <p className="text-body mt-2">
           Tell us which side of the roof you&apos;re on and we&apos;ll get you started.
         </p>
@@ -223,7 +223,7 @@ function TenancyStatusCallout({ tenancy }: { tenancy: Tenancy }) {
   if (tenancy.status === "no_solar") {
     return (
       <Callout variant="info" heading="No solar plan yet">
-        This property doesn&apos;t have a SunShare plan yet.{" "}
+        This property doesn&apos;t have a CYS Solar plan yet.{" "}
         <Link href="/scan" className="font-bold underline">
           Start an assessment
         </Link>{" "}

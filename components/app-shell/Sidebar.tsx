@@ -57,7 +57,7 @@ export default function Sidebar({ className }: { className?: string }) {
       <Link href="/dashboard" className="flex h-16 shrink-0 items-center gap-2.5 px-6">
         <Logo size={28} />
         <span className="text-[18px] font-bold tracking-tight text-grey-900">
-          SunShare
+          CYS Solar
         </span>
       </Link>
 

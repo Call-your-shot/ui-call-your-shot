@@ -4,11 +4,14 @@ import BottomCTA from "@/components/ui/BottomCTA";
 import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
 import Card from "@/components/ui/Card";
+import type { CreateProposalApiResponse, CreateProposalRequest } from "@/app/api/create-proposal/route";
+import { loadBillFlow } from "@/lib/billFlow";
 import { useDemo } from "@/lib/demo-context";
 import { formatCurrency, scenarios, confidenceFan } from "@/lib/mockData";
+import { emailDisplayName, useSignedInEmail } from "@/lib/session";
 import { useCountUp } from "@/lib/useCountUp";
 import { cn } from "@/lib/utils";
-import { ChevronDown, CloudSun, Frown, Home, Zap } from "lucide-react";
+import { Check, ChevronDown, CloudSun, Copy, Download, Frown, Home, Loader2, Zap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
@@ -19,7 +22,7 @@ export default function ResultsPage() {
   const showRefusal = forceRefusal || !property.works;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       {showRefusal ? <RefusalView /> : <ResultsView />}
     </div>
   );
@@ -27,9 +30,80 @@ export default function ResultsPage() {
 
 function ResultsView() {
   const router = useRouter();
+  const signedInEmail = useSignedInEmail();
   const r = scenarios.bellambi.results!;
   const [detailOpen, setDetailOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [shareInfo, setShareInfo] = useState<{ inviteUrl: string } | null>(null);
   const animatedSavings = useCountUp(r.annualSavings);
+
+  async function generateProposal() {
+    setGenerateError(null);
+    const flow = loadBillFlow();
+
+    // Only a signed-in user with a completed real assessment (address, bill
+    // usage and a resolved roof system) hits the real backend — anyone else
+    // (demo mode, or a direct link straight into /results) keeps the
+    // existing mock proposal flow. Same signed-in-vs-demo split as /plans.
+    if (!signedInEmail || !flow.solarSystem || !flow.address || !flow.billingPeriodStart || !flow.billingPeriodEnd) {
+      router.push("/proposal/plan-pending");
+      return;
+    }
+
+    const payload: CreateProposalRequest = {
+      address: flow.address,
+      tenant: {
+        name: emailDisplayName(signedInEmail),
+        email: signedInEmail,
+      },
+      system: {
+        panelCount: flow.solarSystem.panelCount,
+        systemSizeKw: flow.solarSystem.systemSizeKw,
+        panelWatts: flow.solarSystem.panelWatts,
+        orientation: flow.solarSystem.orientation,
+        pitchDegrees: flow.solarSystem.pitchDegrees,
+        estimatedAnnualAcKwh: flow.solarSystem.estimatedAnnualAcKwh,
+        source: flow.solarSystem.source,
+      },
+      consumption: {
+        billUsageKwh: flow.usageKwh ?? 0,
+        billingPeriodStart: flow.billingPeriodStart,
+        billingPeriodEnd: flow.billingPeriodEnd,
+        estimatedAnnualKwh: flow.estimatedAnnualKwh ?? flow.solarSystem.estimatedAnnualAcKwh,
+        ratePerKwhCents: flow.ratePerKwhCents ?? 33,
+        rateSource: flow.rateSource ?? "wollongong-default",
+        // No dedicated "recommended size" endpoint exists yet — the system
+        // Google Solar actually fitted on the roof doubles as the figure
+        // the backend calls the recommendation.
+        recommendedSystemSizeKw: flow.solarSystem.systemSizeKw,
+        systemSizeSource: flow.estimatedAnnualKwhSource ?? "fallback",
+      },
+    };
+
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/create-proposal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as CreateProposalApiResponse;
+      if (!data.ok) {
+        setGenerateError(data.message);
+        return;
+      }
+      setShareInfo({ inviteUrl: data.proposal.inviteUrl });
+    } catch {
+      setGenerateError("Couldn't reach the server — check your connection and try again.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  if (shareInfo) {
+    return <ShareProposalView inviteUrl={shareInfo.inviteUrl} onDone={() => router.push("/plans")} />;
+  }
 
   return (
     <div className="flex w-full flex-1 flex-col pt-4 pb-8">
@@ -44,7 +118,7 @@ function ResultsView() {
       {/* Comparison bars */}
       <Card className="mt-6 animate-fade-up [animation-delay:60ms]">
         <p className="text-[13px] font-semibold tracking-wide text-muted uppercase">
-          Now vs. with SunShare
+          Now vs. with CYS Solar
         </p>
         <div className="mt-3">
           <ComparisonRow
@@ -54,7 +128,7 @@ function ResultsView() {
             colorClass="bg-primary"
           />
           <ComparisonRow
-            label="With SunShare"
+            label="With CYS Solar"
             value={r.withSunShareAnnualBill}
             max={r.currentAnnualBill}
             colorClass="bg-secondary"
@@ -163,11 +237,96 @@ function ResultsView() {
         </p>
       </Card>
 
+      {generateError && (
+        <div className="mt-4 animate-fade-up">
+          <Callout variant="warning">{generateError}</Callout>
+        </div>
+      )}
+
       <div className="h-4" />
 
       <BottomCTA>
-        <Button fullWidth onClick={() => router.push("/proposal/plan-pending")}>
-          Generate landlord proposal
+        <Button fullWidth disabled={generating} onClick={generateProposal}>
+          {generating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+              Generating…
+            </>
+          ) : (
+            "Generate landlord proposal"
+          )}
+        </Button>
+      </BottomCTA>
+    </div>
+  );
+}
+
+function ShareProposalView({ inviteUrl, onDone }: { inviteUrl: string; onDone: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const pdfHref = `/api/proposal/plan-pending/pdf?inviteUrl=${encodeURIComponent(inviteUrl)}`;
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard access can fail (permissions, insecure context) — the
+      // link is still shown and selectable, so this is a soft failure.
+    }
+  }
+
+  return (
+    <div className="flex w-full flex-1 flex-col pt-4 pb-8">
+      <div className="mt-3 flex flex-col items-center text-center animate-fade-up">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white">
+          <Check size={26} aria-hidden="true" />
+        </div>
+        <h1 className="text-h1 mt-4 text-ink">Proposal ready to share</h1>
+        <p className="text-body mt-2 text-muted">
+          Send this link to your landlord. When they sign up and accept, you&apos;ll both see the
+          plan on your dashboards.
+        </p>
+      </div>
+
+      <Card className="mt-6 animate-fade-up [animation-delay:60ms]">
+        <p className="text-[13px] font-semibold tracking-wide text-muted uppercase">Share link</p>
+        <div className="mt-2 flex items-center gap-2 rounded-lg border border-line bg-surface-alt px-3 py-2.5">
+          <input
+            readOnly
+            value={inviteUrl}
+            onFocus={(e) => e.target.select()}
+            className="w-full bg-transparent text-[14px] text-ink outline-none"
+          />
+          <button
+            type="button"
+            onClick={copyLink}
+            className="flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-primary-dark"
+          >
+            {copied ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+      </Card>
+
+      <a
+        href={pdfHref}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-4 flex w-full items-center justify-between rounded-lg border border-line bg-surface px-4 py-3.5 hover:bg-surface-alt animate-fade-up [animation-delay:100ms]"
+      >
+        <span className="text-[14px] font-semibold text-primary">Download PDF agreement</span>
+        <Download size={16} className="text-primary" aria-hidden="true" />
+      </a>
+      <p className="text-small mt-2 text-muted">
+        The PDF includes a QR code your landlord can scan — it opens the same share link.
+      </p>
+
+      <div className="h-4" />
+
+      <BottomCTA>
+        <Button fullWidth onClick={onDone}>
+          Done
         </Button>
       </BottomCTA>
     </div>

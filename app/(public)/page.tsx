@@ -45,7 +45,7 @@ export default function LandingPage() {
           <p className="text-body mt-5 max-w-lg text-white/90 animate-fade-up [animation-delay:100ms]">
             Landlords won&apos;t install solar on a home they don&apos;t pay the
             power bill for, and tenants can&apos;t install solar on a roof
-            they don&apos;t own. SunShare fixes the standoff — you buy solar
+            they don&apos;t own. CYS Solar fixes the standoff — you buy solar
             power straight from your landlord at about half the grid rate.
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row animate-fade-up [animation-delay:150ms]">

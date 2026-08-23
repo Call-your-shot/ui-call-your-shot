@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findTenancyById } from "@/lib/accounts";
+import { findTenancyById, type LeaveRequest, type Tenancy } from "@/lib/accounts";
 
-function localPlan(id: string) {
+export interface PlanDetailResponse extends Omit<Tenancy, "leaveRequest"> {
+  leaveRequest: LeaveRequest | null;
+}
+
+function localPlan(id: string): PlanDetailResponse | null {
   const tenancy = findTenancyById(id);
   return tenancy ? { ...tenancy, leaveRequest: tenancy.leaveRequest ?? null } : null;
 }

@@ -38,7 +38,7 @@ export default function SiteFooter() {
         <div className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
           <div className="mb-8 flex items-center gap-2.5">
             <Logo size={28} />
-            <span className="text-[17px] font-bold text-white">SunShare</span>
+            <span className="text-[17px] font-bold text-white">CYS Solar</span>
           </div>
 
           {/* Desktop: four columns */}

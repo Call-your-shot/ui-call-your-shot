@@ -247,7 +247,7 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
     {
       label: "Solar (Tariff) rate charged to Occupant",
       value: `${r.solarRateCents}c / kWh`,
-      source: "SunShare standard — approx. half the Grid Rate, per the Never-Worse-Off Guarantee",
+      source: "CYS Solar standard — approx. half the Grid Rate, per the Never-Worse-Off Guarantee",
     },
     {
       label: "Feed-in / export tariff to Owner",
@@ -282,7 +282,7 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
     {
       label: "Maintenance reserve contribution",
       value: `${formatCurrency(plan.terms.monthlyReserveContribution)} / billing period`,
-      source: "SunShare standard reserve rate, Schedule 3",
+      source: "CYS Solar standard reserve rate, Schedule 3",
     },
     {
       label: "Post-Completion Tariff Rate",
@@ -299,7 +299,7 @@ export function loadProposalPdfData(id: string): ProposalPdfData | undefined {
     systemSizeKw: scenario.roof.systemSizeKw,
     inverterModel: "Fronius Primo single-phase inverter",
     installDate: new Date(plan.startDate ?? plan.createdDate),
-    installer: "SunShare Certified Partner Network",
+    installer: "CYS Solar Certified Partner Network",
     panelWarrantyYears: policy.panelWarrantyYears,
     inverterWarrantyYears: 10,
     inverterExpectedLifeYears: inverterEvent?.year ?? 12,

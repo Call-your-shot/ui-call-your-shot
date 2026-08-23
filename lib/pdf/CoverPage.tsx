@@ -1,8 +1,12 @@
-import { Circle, Image, Page, Path, StyleSheet, Svg, Text, View } from "@react-pdf/renderer";
+import path from "node:path";
+import { Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { color, font, page } from "@/lib/pdf/theme";
 import { PageFooter, DraftWatermark } from "@/lib/pdf/components";
 import { formatDate } from "@/lib/mockData";
 import type { ProposalPdfData } from "@/lib/pdf/data";
+
+const LOGO_PATH = path.join(process.cwd(), "public", "logo.png");
+const LOGO_ASPECT_RATIO = 1024 / 1536;
 
 const styles = StyleSheet.create({
   page: {
@@ -57,22 +61,20 @@ const styles = StyleSheet.create({
   noticeBold: { fontWeight: 700, color: color.ink },
 });
 
-function LogoMark({ size = 40 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 32 32">
-      <Circle cx={16} cy={12} r={5.5} fill={color.amber} />
-      <Path d="M3 27L13 15L19 21L24 15L29 27H3Z" fill={color.navy} />
-    </Svg>
-  );
+function LogoMark({ width = 110 }: { width?: number }) {
+  // eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image, not an HTML img; renders to a PDF, not a DOM
+  return <Image src={LOGO_PATH} style={{ width, height: width * LOGO_ASPECT_RATIO }} />;
 }
 
 export function CoverPage({
   data,
   qrDataUrl,
+  qrCaption,
   showWatermark,
 }: {
   data: ProposalPdfData;
   qrDataUrl: string;
+  qrCaption?: string;
   showWatermark: boolean;
 }) {
   return (
@@ -115,7 +117,7 @@ export function CoverPage({
       <View style={styles.qrRow}>
         {/* eslint-disable-next-line jsx-a11y/alt-text -- @react-pdf/renderer Image, not an HTML img; renders to a PDF, not a DOM */}
         <Image src={qrDataUrl} style={{ width: 76, height: 76 }} />
-        <Text style={styles.qrCaption}>Scan to view the live plan online</Text>
+        <Text style={styles.qrCaption}>{qrCaption ?? "Scan to view the live plan online"}</Text>
       </View>
 
       <View style={styles.notice}>

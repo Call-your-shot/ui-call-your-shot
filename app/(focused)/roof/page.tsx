@@ -5,7 +5,7 @@ import Button from "@/components/ui/Button";
 import Callout from "@/components/ui/Callout";
 import StatChip from "@/components/ui/StatChip";
 import HouseIllustration from "@/components/civic/HouseIllustration";
-import { loadBillFlow } from "@/lib/billFlow";
+import { loadBillFlow, saveBillFlow } from "@/lib/billFlow";
 import { useDemo } from "@/lib/demo-context";
 import { formatAddress, scenarios } from "@/lib/mockData";
 import { fetchSolarData } from "@/lib/solar/client";
@@ -212,8 +212,26 @@ export default function RoofPage() {
       )
     : undefined;
 
+  // Carry the resolved system through to /results and /create-proposal —
+  // whichever result is currently on screen (real, retried, or manual).
+  useEffect(() => {
+    if (!result || !primarySegment) return;
+    saveBillFlow({
+      ...loadBillFlow(),
+      solarSystem: {
+        panelCount: result.system.panelCount,
+        panelWatts: result.system.panelWatts,
+        systemSizeKw: result.system.systemSizeKw,
+        estimatedAnnualAcKwh: result.system.estimatedAnnualAcKwh,
+        source: result.source,
+        orientation: primarySegment.compassDirection,
+        pitchDegrees: primarySegment.pitchDegrees,
+      },
+    });
+  }, [result, primarySegment]);
+
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="flex w-full flex-1 flex-col pb-8">
         <h1 className="text-h1 mt-4 text-ink">Your roof</h1>
 

@@ -4,12 +4,15 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Callout from "@/components/ui/Callout";
 import { useDemo } from "@/lib/demo-context";
+import { useSignedInEmail } from "@/lib/session";
 import { formatPropertyAddress, getTenancy } from "@/lib/accounts";
 import { formatDate } from "@/lib/mockData";
+import type { PlanDetailResponse } from "@/app/api/plans/[id]/route";
+import type { LeaveRequestApiResponse } from "@/app/api/plans/[id]/leave/route";
 import { cn } from "@/lib/utils";
-import { Check, CircleDot } from "lucide-react";
+import { Check, CircleDot, Loader2 } from "lucide-react";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 function formatCurrency(v: number) {
   return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(v);
@@ -27,30 +30,106 @@ export default function LeavePlanPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const { account, hydrated, refresh } = useDemo();
-  const tenancy = getTenancy(account, params.id);
+  const signedInEmail = useSignedInEmail();
+  const localTenancy = getTenancy(account, params.id);
+  const [remotePlan, setRemotePlan] = useState<PlanDetailResponse | null>(null);
+  const [remoteChecked, setRemoteChecked] = useState(false);
 
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(tenancy?.leaveRequest ? 4 : 1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [moveOutDate, setMoveOutDate] = useState("");
   const [reason, setReason] = useState(REASONS[0].value);
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Nothing to fetch in demo mode — the render below only reads
+    // `remotePlan`/`remoteChecked` when `signedInEmail` is set, so there's
+    // no stale state to clear here.
+    if (!signedInEmail) return;
+    let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- starts the loading flag for the fetch kicked off right below
+    setRemoteChecked(false);
+    fetch(`/api/plans/${params.id}?email=${encodeURIComponent(signedInEmail)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: PlanDetailResponse | null) => {
+        if (!cancelled) setRemotePlan(data);
+      })
+      .catch(() => {
+        if (!cancelled) setRemotePlan(null);
+      })
+      .finally(() => {
+        if (!cancelled) setRemoteChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedInEmail, params.id]);
+
+  // Signed in: pulled live from the backend via /api/plans/[id]. Demo mode
+  // (no signed-in email): the local mock account, matching the existing
+  // account-switcher demo panel.
+  const tenancy: PlanDetailResponse | undefined = signedInEmail
+    ? (remotePlan ?? undefined)
+    : localTenancy
+      ? { ...localTenancy, leaveRequest: localTenancy.leaveRequest ?? null }
+      : undefined;
+
+  // Jump straight to the status view if a notice is already on file — only
+  // fires once real data settles (demo mode has it on the first render, but
+  // the effect only actually moves the step when it's not already there).
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- jumps to the status view once a leave request is confirmed to exist, from either data source
+    if (tenancy?.leaveRequest && step !== 4) setStep(4);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenancy?.leaveRequest]);
 
   // See the matching guard in plans/[id]/page.tsx for why this waits on
   // `hydrated` before treating a miss as a real 404.
   if (!hydrated) return null;
+  if (signedInEmail && !remoteChecked) return null;
   if (!tenancy) return notFound();
 
-  // `tenancy` is a reference into the module-level mock account store, not
-  // derived render state — there's no backend here, so mutating it in place
-  // and calling refresh() to force a re-render is the deliberate mechanism
-  // (see the `refresh` doc comment in demo-context.tsx).
-  function submit() {
+  async function submit() {
     if (!tenancy || !moveOutDate) return;
+    const reasonLabel = REASONS.find((r) => r.value === reason)?.label ?? reason;
+
+    if (signedInEmail) {
+      setSubmitError(null);
+      setSubmitting(true);
+      try {
+        const res = await fetch(`/api/plans/${tenancy.id}/leave`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: signedInEmail, moveOutDate, reason: reasonLabel, note: note || undefined }),
+        });
+        const data = (await res.json()) as LeaveRequestApiResponse;
+        if (!data.ok) {
+          setSubmitError(data.message);
+          return;
+        }
+        setRemotePlan(data.plan);
+        setStep(4);
+      } catch {
+        setSubmitError("Couldn't reach the server — check your connection and try again.");
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Demo mode: `localTenancy` is a reference into the module-level mock
+    // account store, not derived render state — there's no backend here,
+    // so mutating it in place and calling refresh() to force a re-render is
+    // the deliberate mechanism (see the `refresh` doc comment in
+    // demo-context.tsx).
+    if (!localTenancy) return;
     const today = new Date().toISOString().slice(0, 10);
-    tenancy.status = "leaving";
-    tenancy.leaveRequest = {
+    localTenancy.status = "leaving";
+    localTenancy.leaveRequest = {
       requestedDate: today,
       moveOutDate,
-      reason: REASONS.find((r) => r.value === reason)?.label ?? reason,
+      reason: reasonLabel,
       note: note || undefined,
       status: "pending",
       timeline: { noticeGiven: today },
@@ -60,11 +139,13 @@ export default function LeavePlanPage() {
   }
 
   function withdraw() {
-    if (!tenancy) return;
-    tenancy.status = "active";
-    tenancy.leaveRequest = undefined;
+    // No backend endpoint to withdraw a submitted notice yet — the button
+    // that calls this is hidden in signed-in mode (see below).
+    if (!localTenancy) return;
+    localTenancy.status = "active";
+    localTenancy.leaveRequest = undefined;
     refresh();
-    router.push(`/plans/${tenancy.id}`);
+    router.push(`/plans/${localTenancy.id}`);
   }
 
   return (
@@ -167,20 +248,29 @@ export default function LeavePlanPage() {
           </Card>
           <Callout variant="success">
             Once submitted, your landlord will be notified and your plan status
-            will show as &ldquo;Leaving&rdquo;. You can withdraw your notice at
-            any time before it&apos;s acknowledged.
+            will show as &ldquo;Leaving&rdquo;.
+            {!signedInEmail && " You can withdraw your notice at any time before it's acknowledged."}
           </Callout>
+          {submitError && <Callout variant="warning">{submitError}</Callout>}
           <div className="flex gap-3">
-            <Button variant="secondary" fullWidth onClick={() => setStep(2)}>
+            <Button variant="secondary" fullWidth onClick={() => setStep(2)} disabled={submitting}>
               Back
             </Button>
             {/* `submit` mutates the mock tenancy record in place and calls
-                refresh() to force a re-render — deliberate, since there's no
-                backend here (see the `refresh` doc comment in
-                demo-context.tsx). */}
+                refresh() to force a re-render in demo mode — deliberate,
+                since there's no backend to call there (see the `refresh`
+                doc comment in demo-context.tsx); signed-in mode posts to
+                the real backend instead. */}
             {/* eslint-disable-next-line react-hooks/immutability */}
-            <Button fullWidth onClick={submit}>
-              Submit notice
+            <Button fullWidth disabled={submitting} onClick={submit}>
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+                  Submitting…
+                </>
+              ) : (
+                "Submit notice"
+              )}
             </Button>
           </div>
         </div>
@@ -214,7 +304,9 @@ export default function LeavePlanPage() {
             </ol>
           </Card>
 
-          {tenancy.leaveRequest.status === "pending" && (
+          {/* No backend endpoint to withdraw a submitted notice yet — see
+              the comment on `withdraw` above. */}
+          {!signedInEmail && tenancy.leaveRequest.status === "pending" && (
               // eslint-disable-next-line react-hooks/immutability
               <Button variant="secondary" onClick={withdraw}>
                 Withdraw notice
