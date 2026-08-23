@@ -71,6 +71,8 @@ export const emptyBillFlow: BillFlowState = {
   usageDataQuality: null,
 };
 
+export const NEW_ASSESSMENT_HREF = "/household?new=1";
+
 const STORAGE_KEY = "sunshare-bill-flow";
 
 export function loadBillFlow(): BillFlowState {
@@ -90,6 +92,18 @@ export function saveBillFlow(state: BillFlowState): void {
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // ignore write failures (private mode etc.)
+  }
+}
+
+/** Clears every browser-side reference to the previous assessment before a
+ * user starts entering a different property or household. */
+export function resetBillFlow(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY);
+    window.sessionStorage.removeItem("sunshare-latest-assessment-id");
+  } catch {
+    // ignore storage failures (private mode etc.)
   }
 }
 

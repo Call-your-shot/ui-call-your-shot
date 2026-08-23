@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import { useDemo } from "@/lib/demo-context";
 import type { BackendProposal, InitialAssessment } from "@/lib/backend/types";
+import { NEW_ASSESSMENT_HREF } from "@/lib/billFlow";
 
 const money = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 const guarantees = [
@@ -81,7 +82,7 @@ export default function ProposalPage() {
     setSendOpen(false);
   }
 
-  if (error && !assessment) return <StateMessage message={error} action={() => router.push("/roof")} />;
+  if (error && !assessment) return <StateMessage message={error} action={() => router.push(NEW_ASSESSMENT_HREF)} />;
   if (!assessment) return <StateMessage loading message="Loading proposal assessment…" />;
 
   const landlord = assessment.landlordEconomics;

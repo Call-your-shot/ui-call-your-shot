@@ -7,6 +7,7 @@ import HouseIllustration from "@/components/civic/HouseIllustration";
 import { useDemo } from "@/lib/demo-context";
 import { formatPropertyAddress, type Tenancy, type TenancyStatus } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
+import { NEW_ASSESSMENT_HREF } from "@/lib/billFlow";
 import { ChevronRight, Plus } from "lucide-react";
 import Link from "next/link";
 
@@ -50,7 +51,7 @@ export default function PlansPage() {
         </div>
       )}
 
-      <Button href="/roof" fullWidth className="mt-6">
+      <Button href={NEW_ASSESSMENT_HREF} fullWidth className="mt-6">
         <Plus size={16} aria-hidden="true" />
         Start a new assessment
       </Button>
@@ -110,7 +111,7 @@ function EmptyState() {
       <p className="text-body mt-1 max-w-sm">
         Start with the property address and we&apos;ll see whether your roof — or your landlord&apos;s — could work.
       </p>
-      <Button href="/roof" className="mt-5">
+      <Button href={NEW_ASSESSMENT_HREF} className="mt-5">
         Start an assessment
       </Button>
     </Card>

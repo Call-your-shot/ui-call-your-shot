@@ -5,23 +5,24 @@ import Button from "@/components/ui/Button";
 import StepIndicator from "@/components/ui/StepIndicator";
 import { estimateAnnualUsage, getBillSeason } from "@/lib/consumption/estimate";
 import type { HoursBucket, Season } from "@/lib/consumption/types";
-import { loadBillFlow, saveBillFlow, type BillFlowState } from "@/lib/billFlow";
+import {
+  emptyBillFlow,
+  lastMonthRange,
+  loadBillFlow,
+  resetBillFlow,
+  saveBillFlow,
+  type BillFlowState,
+} from "@/lib/billFlow";
+import type { AddressApiResponse } from "@/app/api/address/route";
 import { fetchAnnualLoad } from "@/lib/annualLoad/client";
 import { cn } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 type HomeDuringDay = BillFlowState["homeDuringDay"];
-type StepKind = "occupants" | "occupancy" | "heating" | "cooling" | "appliances";
-
-const STEP_TITLES: Record<StepKind, string> = {
-  occupants: "Household size",
-  occupancy: "Daytime occupancy",
-  heating: "Heating",
-  cooling: "Cooling",
-  appliances: "Other appliances",
-};
+type StepKind = "property" | "bill" | "occupants" | "occupancy" | "heating" | "cooling" | "appliances";
+type AddressStatus = "idle" | "checking" | "valid" | "invalid";
 
 const HOURS_OPTIONS: { id: HoursBucket; label: string }[] = [
   { id: "0-2", label: "0–2 hrs/day" },
@@ -35,6 +36,14 @@ export default function HouseholdPage() {
   const [hydrated, setHydrated] = useState(false);
   const [step, setStep] = useState(0);
   const [billSeason, setBillSeason] = useState<Season>("winter");
+
+  const [address, setAddress] = useState("");
+  const [addressStatus, setAddressStatus] = useState<AddressStatus>("idle");
+  const [addressMessage, setAddressMessage] = useState("");
+  const [billingPeriodStart, setBillingPeriodStart] = useState("");
+  const [billingPeriodEnd, setBillingPeriodEnd] = useState("");
+  const [usageKwh, setUsageKwh] = useState<number | null>(null);
+  const [billTotalCostDollars, setBillTotalCostDollars] = useState<number | null>(null);
 
   const [homeDuringDay, setHomeDuringDay] = useState<HomeDuringDay>(null);
   const [occupantCount, setOccupantCount] = useState(1);
@@ -57,7 +66,20 @@ export default function HouseholdPage() {
   // covered, so there's no point asking about it).
   /* eslint-disable react-hooks/set-state-in-effect -- one-time sync from sessionStorage after mount */
   useEffect(() => {
-    const flow = loadBillFlow();
+    const isNewAssessment = new URLSearchParams(window.location.search).get("new") === "1";
+    if (isNewAssessment) {
+      resetBillFlow();
+      window.history.replaceState(window.history.state, "", "/household");
+    }
+    const range = lastMonthRange();
+    const flow = isNewAssessment
+      ? { ...emptyBillFlow, billingPeriodStart: range.start, billingPeriodEnd: range.end }
+      : loadBillFlow();
+    setAddress(flow.address);
+    setBillingPeriodStart(flow.billingPeriodStart || range.start);
+    setBillingPeriodEnd(flow.billingPeriodEnd || range.end);
+    setUsageKwh(flow.usageKwh);
+    setBillTotalCostDollars(flow.billTotalCostDollars);
     setHomeDuringDay(flow.homeDuringDay);
     setOccupantCount(flow.occupantCount);
     setHeatingFlag(flow.heatingNotUsedThisMonth);
@@ -77,21 +99,59 @@ export default function HouseholdPage() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  useEffect(() => {
+    if (!hydrated || !address.trim()) {
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- begins debounced address verification
+    setAddressStatus("checking");
+    const timeout = setTimeout(async () => {
+      try {
+        const response = await fetch("/api/address", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address }),
+        });
+        const result = (await response.json()) as AddressApiResponse;
+        if (result.ok && result.formattedAddress) {
+          setAddressStatus("valid");
+          setAddressMessage(result.formattedAddress);
+        } else {
+          setAddressStatus("invalid");
+          setAddressMessage(result.message ?? "We couldn't find that address");
+        }
+      } catch {
+        setAddressStatus("valid");
+        setAddressMessage(address.trim());
+      }
+    }, 500);
+    return () => clearTimeout(timeout);
+  }, [address, hydrated]);
+
   // A winter bill already reflects heating; a summer bill already reflects
   // cooling — only ask about the one(s) this month's bill doesn't cover.
   const showHeating = billSeason !== "winter";
   const showCooling = billSeason !== "summer";
   const steps: StepKind[] = [
+    "property",
+    "bill",
     "occupants",
     "occupancy",
     ...(showHeating ? (["heating"] as const) : []),
     ...(showCooling ? (["cooling"] as const) : []),
     "appliances",
   ];
-  const stepLabels = steps.map((kind) => STEP_TITLES[kind]);
   const currentKind = steps[step];
+  const progressSteps = ["Property", "Electricity use", "Household", "Appliances"];
+  const progressStep = currentKind === "property" ? 0 : currentKind === "bill" ? 1 : currentKind === "appliances" ? 3 : 2;
 
   const canAdvance =
+    (currentKind === "property" && address.trim().length >= 3 && addressStatus === "valid") ||
+    (currentKind === "bill" &&
+      usageKwh !== null && usageKwh > 0 &&
+      !!billingPeriodStart && !!billingPeriodEnd &&
+      billingPeriodEnd > billingPeriodStart &&
+      (billTotalCostDollars === null || billTotalCostDollars >= 0)) ||
     (currentKind === "occupants" && occupantCount > 0) ||
     (currentKind === "occupancy" && homeDuringDay !== null) ||
     (currentKind === "heating" && heatingFlag !== null && (!heatingFlag || heatingHours !== null)) ||
@@ -102,6 +162,28 @@ export default function HouseholdPage() {
       (!hotWaterFlag || hotWaterHours !== null));
 
   async function next() {
+    if (currentKind === "property") {
+      const formattedAddress = addressMessage || address.trim();
+      saveBillFlow({ ...loadBillFlow(), address: formattedAddress });
+      setAddress(formattedAddress);
+      setStep((s) => s + 1);
+      return;
+    }
+
+    if (currentKind === "bill") {
+      saveBillFlow({
+        ...loadBillFlow(),
+        address: addressMessage || address.trim(),
+        billingPeriodStart,
+        billingPeriodEnd,
+        usageKwh,
+        billTotalCostDollars,
+      });
+      setBillSeason(getBillSeason(billingPeriodStart, billingPeriodEnd));
+      setStep((s) => s + 1);
+      return;
+    }
+
     if (step < steps.length - 1) {
       setStep((s) => s + 1);
       return;
@@ -166,21 +248,98 @@ export default function HouseholdPage() {
   }
 
   function back() {
-    if (step === 0) router.push("/roof");
+    if (step === 0) router.push("/dashboard");
     else setStep((s) => s - 1);
   }
 
   // Avoids briefly rendering the wrong (season-independent) step list before
   // sessionStorage has been read.
-  if (!hydrated) return <div className="flex min-h-dvh flex-col" />;
+  if (!hydrated) return <div className="flex flex-1 flex-col" />;
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex flex-1 flex-col">
       <div className="flex w-full flex-1 flex-col pt-4">
         <h1 className="text-h1 text-ink">About your household</h1>
         <div className="mt-4">
-          <StepIndicator steps={stepLabels} current={step} />
+          <StepIndicator steps={progressSteps} current={progressStep} />
         </div>
+
+        {currentKind === "property" && (
+          <Question
+            title="Which home should we assess?"
+            subtitle="Enter the property address so we can inspect the correct roof and keep this assessment separate from your previous one."
+          >
+            <label htmlFor="assessment-address" className="block text-[13px] font-semibold text-muted">
+              Property address
+            </label>
+            <input
+              id="assessment-address"
+              type="text"
+              autoComplete="street-address"
+              value={address}
+              onChange={(event) => {
+                setAddress(event.target.value);
+                setAddressStatus("idle");
+                setAddressMessage("");
+              }}
+              placeholder="e.g. 12 Example Street, Wollongong NSW 2500"
+              className="mt-2 w-full rounded-lg border border-line bg-surface px-4 py-3 text-[15px] font-medium text-ink outline-none focus:border-primary"
+            />
+            <div className="mt-2 flex min-h-5 items-center gap-1.5 text-[12px]">
+              {addressStatus === "checking" && (
+                <><Loader2 size={13} className="animate-spin text-muted" /><span className="text-muted">Checking address…</span></>
+              )}
+              {addressStatus === "valid" && (
+                <><MapPin size={13} className="text-success" /><span className="text-success">{addressMessage}</span></>
+              )}
+              {addressStatus === "invalid" && (
+                <><AlertTriangle size={13} className="text-warning" /><span className="text-warning">{addressMessage}</span></>
+              )}
+            </div>
+          </Question>
+        )}
+
+        {currentKind === "bill" && (
+          <Question
+            title="How much electricity does this household use?"
+            subtitle="Use a recent bill period. These figures determine the monthly demand profile and recommended panel count."
+          >
+            <div className="rounded-lg border border-line bg-surface p-5">
+              <div className="grid grid-cols-2 gap-3">
+                <DateField label="Period start" value={billingPeriodStart} onChange={setBillingPeriodStart} />
+                <DateField label="Period end" value={billingPeriodEnd} onChange={setBillingPeriodEnd} />
+              </div>
+              <label htmlFor="assessment-usage" className="mt-5 block text-[13px] font-semibold text-muted">
+                Electricity used this period (kWh)
+              </label>
+              <input
+                id="assessment-usage"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="1"
+                value={usageKwh ?? ""}
+                onChange={(event) => setUsageKwh(event.target.value ? Number(event.target.value) : null)}
+                placeholder="e.g. 420"
+                className="mt-2 w-full rounded-lg border border-line bg-surface-alt px-4 py-3 text-[15px] font-medium text-ink outline-none focus:border-primary focus:bg-surface"
+              />
+              <label htmlFor="assessment-cost" className="mt-5 block text-[13px] font-semibold text-muted">
+                Total bill amount ($) <span className="font-normal">— optional</span>
+              </label>
+              <input
+                id="assessment-cost"
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="0.01"
+                value={billTotalCostDollars ?? ""}
+                onChange={(event) => setBillTotalCostDollars(event.target.value ? Number(event.target.value) : null)}
+                placeholder="e.g. 140.50"
+                className="mt-2 w-full rounded-lg border border-line bg-surface-alt px-4 py-3 text-[15px] font-medium text-ink outline-none focus:border-primary focus:bg-surface"
+              />
+            </div>
+          </Question>
+        )}
 
         {currentKind === "occupants" && (
           <Question
@@ -321,10 +480,8 @@ export default function HouseholdPage() {
                 <Loader2 size={16} className="animate-spin" aria-hidden="true" />
                 Estimating your usage…
               </>
-            ) : step === steps.length - 1 ? (
-              "Continue"
             ) : (
-              "Next"
+              "Continue"
             )}
           </Button>
         </div>
@@ -348,6 +505,30 @@ function Question({
       {subtitle && <p className="text-body mt-1 text-muted">{subtitle}</p>}
       <div className="mt-6">{children}</div>
     </div>
+  );
+}
+
+function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const id = `assessment-${label.toLowerCase().replaceAll(" ", "-")}`;
+  return (
+    <label htmlFor={id} className="block">
+      <span className="block text-[13px] font-semibold text-muted">{label}</span>
+      <input
+        id={id}
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-2 w-full rounded-lg border border-line bg-surface-alt px-3 py-3 text-[14px] font-medium text-ink outline-none focus:border-primary focus:bg-surface"
+      />
+    </label>
   );
 }
 

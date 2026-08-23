@@ -10,6 +10,7 @@ import Callout from "@/components/ui/Callout";
 import Card from "@/components/ui/Card";
 import type { InitialAssessment } from "@/lib/backend/types";
 import { cn } from "@/lib/utils";
+import { NEW_ASSESSMENT_HREF } from "@/lib/billFlow";
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -46,7 +47,7 @@ export default function ResultsPage() {
         <AlertTriangle size={34} className="text-warning" />
         <h1 className="text-h2 text-ink">Assessment unavailable</h1>
         <p className="text-body max-w-md text-muted">{error}</p>
-        <Button onClick={() => router.push("/roof")}>Start a new assessment</Button>
+        <Button onClick={() => router.push(NEW_ASSESSMENT_HREF)}>Start a new assessment</Button>
       </div>
     );
   }

@@ -15,6 +15,7 @@ import {
 } from "@/lib/accounts";
 import { formatDate } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+import { NEW_ASSESSMENT_HREF } from "@/lib/billFlow";
 import {
   AlertTriangle,
   Battery,
@@ -84,7 +85,7 @@ function WelcomeEmptyState() {
           Tell us which side of the roof you&apos;re on and we&apos;ll get you started.
         </p>
         <div className="mt-6 flex flex-col gap-3">
-          <Button href="/roof" fullWidth>
+          <Button href={NEW_ASSESSMENT_HREF} fullWidth>
             I rent a home
           </Button>
           <Button href="/properties/new" variant="secondary" fullWidth>
@@ -196,7 +197,7 @@ function TenancyStatusCallout({ tenancy }: { tenancy: Tenancy }) {
     return (
       <Callout variant="info" heading="No solar plan yet">
         This property doesn&apos;t have a SunShare plan yet.{" "}
-        <Link href="/roof" className="font-bold underline">
+        <Link href={NEW_ASSESSMENT_HREF} className="font-bold underline">
           Start an assessment
         </Link>{" "}
         to see what&apos;s possible.

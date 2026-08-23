@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import { useDemo } from "@/lib/demo-context";
 import { formatPropertyAddress, totalSavingsToDate, type Tenancy } from "@/lib/accounts";
 import { cn } from "@/lib/utils";
+import { NEW_ASSESSMENT_HREF } from "@/lib/billFlow";
 import { Download } from "lucide-react";
 import { useState } from "react";
 import {
@@ -35,7 +36,7 @@ export default function SavingsHistoryPage() {
           <p className="text-body mt-1 max-w-sm">
             You&apos;ll see your savings here once you have an active solar plan.
           </p>
-          <Button href="/roof" className="mt-5">
+          <Button href={NEW_ASSESSMENT_HREF} className="mt-5">
             Start an assessment
           </Button>
         </Card>

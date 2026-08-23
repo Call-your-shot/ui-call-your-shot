@@ -3,6 +3,7 @@
 import Button from "@/components/ui/Button";
 import { useDemo } from "@/lib/demo-context";
 import { cn } from "@/lib/utils";
+import { NEW_ASSESSMENT_HREF } from "@/lib/billFlow";
 import { Bell, Menu, Plus, Search } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -90,7 +91,7 @@ export default function AppTopBar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
         <div className="flex items-center gap-2">
           <div className="hidden sm:block">
-            <Button href="/roof">
+            <Button href={NEW_ASSESSMENT_HREF}>
               <Plus size={16} aria-hidden="true" />
               New assessment
             </Button>
