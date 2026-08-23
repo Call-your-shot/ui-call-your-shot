@@ -14,6 +14,7 @@ export function billFlowToPayload(flow: BillFlowState): AnnualLoadRequestPayload
     billingPeriodEnd: flow.billingPeriodEnd,
     billTotalCostDollars: flow.billTotalCostDollars,
     homeDuringDay: flow.homeDuringDay,
+    occupantCount: flow.occupantCount,
     heatingNotUsedThisMonth: flow.heatingNotUsedThisMonth,
     heatingHours: flow.heatingHours,
     coolingNotUsedThisMonth: flow.coolingNotUsedThisMonth,

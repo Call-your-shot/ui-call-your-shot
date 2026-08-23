@@ -39,6 +39,7 @@ export interface MonthlyIncomeRecord {
 export interface LeaveTimeline {
   noticeGiven: string;
   landlordAcknowledged?: string;
+  approved?: string;
   finalStatementIssued?: string;
   planClosed?: string;
 }
@@ -48,7 +49,7 @@ export interface LeaveRequest {
   moveOutDate: string;
   reason: string;
   note?: string;
-  status: "pending" | "acknowledged" | "withdrawn";
+  status: "pending" | "acknowledged" | "approved" | "withdrawn";
   timeline: LeaveTimeline;
 }
 
@@ -116,7 +117,7 @@ export interface PropertyLeaveRequest {
   requestedDate: string;
   moveOutDate: string;
   reason: string;
-  status: "pending" | "acknowledged";
+  status: "pending" | "acknowledged" | "approved";
 }
 
 export interface OwnedProperty {
@@ -308,7 +309,7 @@ function pinLatestMonthSavings(
 }
 
 function sarahsTenancy(): Tenancy {
-  const monthly = pinLatestMonthSavings(buildMonthlyUsage(14, 8.5, 5.5, 15, 30), 98, 15, 30);
+  const monthly = pinLatestMonthSavings(buildMonthlyUsage(14, 240, 160, 15, 30), 98, 15, 30);
   return {
     id: "ten-sarah-bellambi",
     propertyId: "prop-owned-1",
@@ -405,7 +406,7 @@ const davidMarino: Account = {
       },
       currentTenant: davidActiveTenancyOnProperty1(),
       tenantHistory: [davidActiveTenancyOnProperty1(), davidPreviousTenantOnProperty1()],
-      monthlyIncome: 428,
+      monthlyIncome: 64,
       balanceOutstanding:
         PROPERTY_1_BALANCE_TOTAL -
         (PROPERTY_1_CURRENT_TENANT_CONTRIBUTION + PROPERTY_1_PREVIOUS_TENANT_CONTRIBUTION),
@@ -484,7 +485,7 @@ function priyasTenancy(): Tenancy {
     propertyManager: "Coastal Realty Group",
     landlordAgreedDate: "2025-02-14",
     systemSizeKw: 5.3,
-    monthly: buildMonthlyUsage(14, 5.2, 6.8, 15, 29),
+    monthly: buildMonthlyUsage(14, 210, 195, 15, 29),
   };
 }
 

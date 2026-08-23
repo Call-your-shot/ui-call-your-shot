@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import QRCode from "qrcode";
+import { backendErrorResponse, backendFetch } from "@/lib/backend/server";
+import type { BackendProposal, InitialAssessment } from "@/lib/backend/types";
 import { registerFonts } from "@/lib/pdf/fonts";
-import { loadProposalPdfData } from "@/lib/pdf/data";
-import { ProposalDocument } from "@/lib/pdf/ProposalDocument";
+import { buildProposalPdfData } from "@/lib/pdf/live-data";
+import { LiveProposalDocument } from "@/lib/pdf/LiveProposalDocument";
 
 export const runtime = "nodejs";
 
@@ -11,41 +13,34 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const data = loadProposalPdfData(id);
-
-  if (!data) {
-    return NextResponse.json({ error: "Proposal not found" }, { status: 404 });
-  }
-
-  registerFonts();
-
-  // A real, backend-created proposal's landlord invite link takes priority
-  // over the plan-tracking URL — before the landlord has accepted, "the
-  // live plan" doesn't exist yet, only the invite does. Restricted to our
-  // own origin so this endpoint can't be used to QR-code an arbitrary URL.
-  const requestedInviteUrl = request.nextUrl.searchParams.get("inviteUrl");
-  let inviteUrl: string | null = null;
-  if (requestedInviteUrl) {
-    try {
-      inviteUrl = new URL(requestedInviteUrl, request.nextUrl.origin).origin === request.nextUrl.origin
-        ? requestedInviteUrl
-        : null;
-    } catch {
-      inviteUrl = null;
+  try {
+    const { id } = await params;
+    const proposal = await backendFetch<BackendProposal>(`/proposals/${encodeURIComponent(id)}`);
+    let assessment: InitialAssessment | null = null;
+    if (proposal.assessmentId) {
+      assessment = await backendFetch<InitialAssessment>(
+        `/api/v1/assessments/${encodeURIComponent(proposal.assessmentId)}`
+      ).catch(() => null);
     }
+
+    const data = buildProposalPdfData(proposal, assessment);
+    registerFonts();
+    const proposalUrl = new URL(
+      `/proposal/${encodeURIComponent(proposal.inviteToken)}/landlord`,
+      request.nextUrl.origin
+    ).toString();
+    const qrDataUrl = await QRCode.toDataURL(proposalUrl, { margin: 1, width: 300 });
+    const buffer = await renderToBuffer(LiveProposalDocument({ data, qrDataUrl }));
+
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${data.reference}-proposal.pdf"`,
+        "Cache-Control": "no-store, max-age=0",
+        "X-Content-Type-Options": "nosniff",
+      },
+    });
+  } catch (error) {
+    return backendErrorResponse(error);
   }
-  const qrTargetUrl = inviteUrl || new URL(`/plans/${data.plan.id}`, request.nextUrl.origin).toString();
-  const qrDataUrl = await QRCode.toDataURL(qrTargetUrl, { margin: 1, width: 300 });
-  const qrCaption = inviteUrl ? "Scan to review and accept this proposal" : undefined;
-
-  const buffer = await renderToBuffer(ProposalDocument({ data, qrDataUrl, qrCaption }));
-
-  return new NextResponse(new Uint8Array(buffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${data.reference}-proposal.pdf"`,
-      "Cache-Control": "no-store",
-    },
-  });
 }

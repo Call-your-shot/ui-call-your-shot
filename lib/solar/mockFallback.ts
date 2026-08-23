@@ -56,7 +56,14 @@ export function buildMockSolarResult(scenarioId: ScenarioId): SolarResult {
     },
 
     panels: [],
-    alternatives: [],
+    alternatives: Array.from({ length: roof.panelCount }, (_, index) => index + 1)
+      .filter((count) => count === 1 || count === roof.panelCount || count % 2 === 0)
+      .map((count) => ({
+        candidateId: `mock-${count}`,
+        panelCount: count,
+        systemSizeKw: Math.round(count * 440 / 100) / 10,
+        annualKwh: Math.round(count * 440 / 1000 * 1400),
+      })),
     carbonOffsetKgPerYear: Math.round(roof.systemSizeKw * 1400 * 0.7),
   };
 }

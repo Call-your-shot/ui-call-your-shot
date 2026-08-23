@@ -67,7 +67,7 @@ export function getBillSeason(billingPeriodStart: string, billingPeriodEnd: stri
 
 function dailyKwhIfFlagged(flagged: boolean, hours: HoursBucket | null, applianceKw: number): number {
   if (!flagged || !hours) return 0;
-  return HOURS_MIDPOINT[hours] * applianceKw;
+  return (HOURS_MIDPOINT[hours] ?? 0) * applianceKw;
 }
 
 /**

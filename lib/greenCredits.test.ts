@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { allocateGreenCredits, sponsorFundingForCredits } from "@/lib/greenCredits";
+import {
+  allocateGreenCredits,
+  greenProjects,
+  getGreenCreditDashboardSummary,
+  sponsorFundingForCredits,
+} from "@/lib/greenCredits";
 
 describe("green credit allocation", () => {
+  it("provides a real project image for every curated project", () => {
+    expect(greenProjects).toHaveLength(3);
+    expect(greenProjects.every((project) => project.imagePath.endsWith(".webp"))).toBe(true);
+  });
+
+  it("keeps the dashboard focused on balance and invested impact credits", () => {
+    expect(
+      getGreenCreditDashboardSummary({
+        availableCredits: 2310,
+        lifetimeEarnedCredits: 3510,
+        lifetimeAllocatedCredits: 1200,
+        verifiedSolarKwh: 5014,
+      })
+    ).toEqual({
+      currentBalance: 2310,
+      impactCreditsInvested: 1200,
+    });
+  });
+
   it("converts credits into sponsor funding using the declared rate", () => {
     expect(sponsorFundingForCredits(250, 100)).toBe(2.5);
   });

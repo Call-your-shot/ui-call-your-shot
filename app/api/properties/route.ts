@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getAccountByEmail, type OwnedProperty } from "@/lib/accounts";
+import { backendErrorResponse, backendFetch } from "@/lib/backend/server";
+import { getSessionEmail } from "@/lib/backend/session";
 import type { Address } from "@/lib/mockData";
+import type { OwnedProperty } from "@/lib/accounts";
 
 export interface PropertyListItem {
   id: string;
@@ -17,43 +18,28 @@ export interface PropertiesApiResponse {
   properties: PropertyListItem[];
 }
 
-function localProperties(email: string): PropertiesApiResponse {
-  const account = getAccountByEmail(email);
-  const properties: PropertyListItem[] = (account?.ownedProperties ?? []).map((p) => ({
-    id: p.id,
-    address: p.address,
-    imageVariant: p.imageVariant,
-    occupancyStatus: p.occupancyStatus,
-    systemSizeKw: p.system?.sizeKw ?? null,
-    currentTenantName: p.currentTenant?.name ?? null,
-    monthlyIncome: p.monthlyIncome,
-    balanceOutstanding: p.balanceOutstanding,
-  }));
-  return { properties };
+export async function GET() {
+  const email = await getSessionEmail();
+  if (!email) return Response.json({ message: "Not signed in" }, { status: 401 });
+  try {
+    return Response.json(
+      await backendFetch(`/api/properties?email=${encodeURIComponent(email)}`)
+    );
+  } catch (error) {
+    return backendErrorResponse(error);
+  }
 }
 
-// Same proxy-first, local-fallback pattern as GET /api/plans — the real
-// backend already exposes this at GET /api/properties?email= (in
-// energy.py, reusing plan_views.list_landlord_properties), so this just
-// mirrors the plans route's shape for the Next.js frontend.
-export async function GET(req: NextRequest) {
-  const email = req.nextUrl.searchParams.get("email")?.trim();
-  if (!email) {
-    return NextResponse.json({ message: "email is required" }, { status: 400 });
+export async function POST(request: Request) {
+  const email = await getSessionEmail();
+  if (!email) return Response.json({ message: "Not signed in" }, { status: 401 });
+  try {
+    const body = await request.json();
+    return Response.json(await backendFetch("/api/properties", {
+      method: "POST",
+      body: JSON.stringify({ ...body, email }),
+    }), { status: 201 });
+  } catch (error) {
+    return backendErrorResponse(error);
   }
-
-  const backendBaseUrl = process.env.BACKEND_URL;
-  if (backendBaseUrl) {
-    try {
-      const res = await fetch(`${backendBaseUrl}/api/properties?email=${encodeURIComponent(email)}`);
-      if (!res.ok) throw new Error(`Properties backend responded ${res.status}`);
-      const data = await res.json();
-      if (!Array.isArray(data?.properties)) throw new Error("Properties backend returned no usable properties array");
-      return NextResponse.json<PropertiesApiResponse>({ properties: data.properties });
-    } catch (err) {
-      console.error("[api/properties] backend call failed, using local fallback:", err);
-    }
-  }
-
-  return NextResponse.json<PropertiesApiResponse>(localProperties(email));
 }

@@ -2,21 +2,33 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { ScenarioId } from "@/lib/mockData";
-import { defaultAccountId, mockAccounts, type Account } from "@/lib/accounts";
+import type { Account } from "@/lib/accounts";
+
+export const demoAccounts = [
+  { id: "sarah", name: "Sarah Chen", email: "sarah.chen@example.com" },
+  { id: "david", name: "David Marino", email: "david.marino@example.com" },
+  { id: "priya", name: "Priya Nair", email: "priya.nair@example.com" },
+] as const;
+
+const emptyAccount: Account = {
+  id: "",
+  name: "",
+  email: "",
+  avatarInitials: "",
+  tenancies: [],
+  ownedProperties: [],
+};
 
 interface DemoState {
-  /** False until the account has been synced from localStorage. Pages that
-   * look up a specific tenancy/property by id should wait for this before
-   * treating a miss as a real 404 — otherwise a direct link into a
-   * non-default demo account's data will flash a false not-found against
-   * the default account before hydration completes. */
   hydrated: boolean;
   account: Account;
   accountId: string;
@@ -27,96 +39,151 @@ interface DemoState {
   setForceRefusal: (v: boolean) => void;
   panelOpen: boolean;
   setPanelOpen: (v: boolean) => void;
-  /** Forces a re-render after code has mutated fields on the current
-   * account's mock data in place (e.g. submitting the leave flow). There's
-   * no backend here — this is the deliberate, minimal way demo actions
-   * become visible without building a full mock data store. */
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }
 
 const DemoContext = createContext<DemoState | null>(null);
+const STORAGE_KEY = "sunshare-demo-visual-state";
 
-const STORAGE_KEY = "sunshare-demo-state";
-
-interface PersistedSettings {
-  accountId: string;
-  scenario: ScenarioId;
-  forceRefusal: boolean;
+function accountIdForEmail(email: string): string {
+  return demoAccounts.find((candidate) => candidate.email === email)?.id ?? "account";
 }
 
-const defaultSettings: PersistedSettings = {
-  accountId: defaultAccountId,
-  scenario: "bellambi",
-  forceRefusal: false,
-};
+function isPublicPath(pathname: string): boolean {
+  return (
+    pathname === "/" ||
+    pathname === "/signin" ||
+    pathname.startsWith("/invite/") ||
+    (pathname.startsWith("/proposal/") && pathname.endsWith("/landlord"))
+  );
+}
 
 export function DemoProvider({ children }: { children: ReactNode }) {
-  // Render defaults on both server and first client pass to avoid a
-  // hydration mismatch, then sync from localStorage/query string once
-  // mounted — matches the pattern used for theme toggles etc.
-  const [settings, setSettings] = useState<PersistedSettings>(defaultSettings);
+  const pathname = usePathname();
+  const router = useRouter();
+  const needsAccount = !isPublicPath(pathname);
+  const [account, setAccount] = useState<Account>(emptyAccount);
+  const [hydrated, setHydrated] = useState(!needsAccount);
+  const [loadError, setLoadError] = useState("");
+  const [scenario, setScenario] = useState<ScenarioId>("bellambi");
+  const [forceRefusal, setForceRefusal] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time sync from browser-owned demo preferences */
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      const parsed = raw ? JSON.parse(raw) : {};
-      // Deliberate one-time sync from localStorage after mount, so the
-      // first client render matches SSR (avoids a hydration mismatch).
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setSettings({
-        accountId:
-          typeof parsed.accountId === "string" && mockAccounts[parsed.accountId]
-            ? parsed.accountId
-            : defaultSettings.accountId,
-        scenario: parsed.scenario ?? defaultSettings.scenario,
-        forceRefusal:
-          typeof parsed.forceRefusal === "boolean"
-            ? parsed.forceRefusal
-            : defaultSettings.forceRefusal,
-      });
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("demo") === "1") setPanelOpen(true);
+      const saved = raw ? JSON.parse(raw) : {};
+      if (saved.scenario === "bellambi" || saved.scenario === "shaded") {
+        setScenario(saved.scenario);
+      }
+      if (typeof saved.forceRefusal === "boolean") setForceRefusal(saved.forceRefusal);
+      if (new URLSearchParams(window.location.search).get("demo") === "1") {
+        setPanelOpen(true);
+      }
     } catch {
-      // ignore malformed storage
-    } finally {
-      setHydrated(true);
+      // Visual-only demo preferences are non-critical.
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ scenario, forceRefusal }));
     } catch {
-      // ignore write failures (private mode etc.)
+      // Ignore private-mode storage failures.
     }
-  }, [hydrated, settings]);
+  }, [scenario, forceRefusal]);
+
+  const loadAccount = useCallback(async () => {
+    if (!needsAccount) {
+      setHydrated(true);
+      return;
+    }
+    setLoadError("");
+    try {
+      const response = await fetch("/api/dashboard", { cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.message ?? "Could not load your account");
+      setAccount(payload as Account);
+    } catch (cause) {
+      setLoadError(cause instanceof Error ? cause.message : "Could not load your account");
+    } finally {
+      setHydrated(true);
+    }
+  }, [needsAccount]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronises React with the external FastAPI account
+    void loadAccount();
+  }, [loadAccount]);
+
+  const setAccountId = useCallback(
+    (id: string) => {
+      const selected = demoAccounts.find((candidate) => candidate.id === id);
+      if (!selected) return;
+      void (async () => {
+        const response = await fetch("/api/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: selected.email }),
+        });
+        if (!response.ok) return;
+        setHydrated(false);
+        await loadAccount();
+        router.refresh();
+      })();
+    },
+    [loadAccount, router]
+  );
 
   const value = useMemo<DemoState>(
     () => ({
       hydrated,
-      account: mockAccounts[settings.accountId] ?? mockAccounts[defaultAccountId],
-      accountId: settings.accountId,
-      setAccountId: (accountId) => setSettings((s) => ({ ...s, accountId })),
-      scenario: settings.scenario,
-      setScenario: (scenario) => setSettings((s) => ({ ...s, scenario })),
-      forceRefusal: settings.forceRefusal,
-      setForceRefusal: (forceRefusal) =>
-        setSettings((s) => ({ ...s, forceRefusal })),
+      account,
+      accountId: accountIdForEmail(account.email),
+      setAccountId,
+      scenario,
+      setScenario,
+      forceRefusal,
+      setForceRefusal,
       panelOpen,
       setPanelOpen,
-      refresh: () => setSettings((s) => ({ ...s })),
+      refresh: loadAccount,
     }),
-    [settings, panelOpen, hydrated]
+    [account, forceRefusal, hydrated, loadAccount, panelOpen, scenario, setAccountId]
   );
+
+  if (needsAccount && !hydrated) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-surface-alt text-body text-muted">
+        Loading your SunShare account…
+      </div>
+    );
+  }
+
+  if (needsAccount && loadError) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 px-6 text-center">
+        <h1 className="text-h2 text-ink">We couldn&apos;t load your account</h1>
+        <p className="text-body text-muted">{loadError}</p>
+        <div className="flex gap-3">
+          <button className="rounded-lg bg-primary px-4 py-2 font-semibold text-white" onClick={() => void loadAccount()}>
+            Try again
+          </button>
+          <button className="rounded-lg border border-line px-4 py-2 font-semibold text-primary" onClick={() => router.push("/signin")}>
+            Sign in
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>;
 }
 
 export function useDemo(): DemoState {
-  const ctx = useContext(DemoContext);
-  if (!ctx) throw new Error("useDemo must be used within DemoProvider");
-  return ctx;
+  const context = useContext(DemoContext);
+  if (!context) throw new Error("useDemo must be used within DemoProvider");
+  return context;
 }

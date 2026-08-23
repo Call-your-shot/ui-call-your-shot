@@ -18,11 +18,25 @@ export async function fetchAnnualLoad(payload: AnnualLoadRequestPayload): Promis
     });
     return (await res.json()) as AnnualLoadApiResponse;
   } catch (err) {
+    const daytimeUsageRatio = payload.homeDuringDay === "most" ? 0.55 : payload.homeDuringDay === "rarely" ? 0.25 : 0.4;
     return {
       ok: false,
       code: "API_ERROR",
       message: err instanceof Error ? err.message : "Network error",
-      fallback: { estimatedAnnualUsageKwh: OFFLINE_FALLBACK_KWH, source: "fallback" },
+      fallback: {
+        estimatedAnnualUsageKwh: OFFLINE_FALLBACK_KWH,
+        monthlyUsage: Array.from({ length: 12 }, (_, index) => ({
+          calendarMonth: index + 1,
+          monthName: new Date(2025, index, 1).toLocaleString("en-AU", { month: "long" }),
+          usageKwh: OFFLINE_FALLBACK_KWH / 12,
+          daytimeUsageRatio,
+          source: "survey_derived" as const,
+        })),
+        observedMonthCount: 0,
+        profileSource: "single_bill_and_survey",
+        dataQuality: "low",
+        source: "fallback",
+      },
     };
   }
 }

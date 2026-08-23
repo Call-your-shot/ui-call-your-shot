@@ -16,6 +16,7 @@ export interface BillFlowState {
   billTotalCostDollars: number | null;
 
   homeDuringDay: "most" | "sometimes" | "rarely" | null;
+  occupantCount: number;
 
   // Each pair below: "yes, we have/use this, just not this month" + how many
   // hours/day it runs when it IS used.
@@ -34,28 +35,11 @@ export interface BillFlowState {
    * locally. Drives panel selection on /roof via Google Solar's own
    * annual-kWh-target matching. */
   estimatedAnnualKwh: number | null;
-  /** Whether estimatedAnnualKwh came from the real sizing backend or a
-   * local fallback — carried through to /create-proposal's
-   * consumption.systemSizeSource. */
-  estimatedAnnualKwhSource: "backend" | "fallback" | null;
   estimatedAnnualBillDollars: number | null;
   ratePerKwhCents: number | null;
-  /** Whether ratePerKwhCents came from the bill's own total, or a regional
-   * default — carried through to /create-proposal's consumption.rateSource. */
-  rateSource: "bill" | "wollongong-default" | null;
-
-  /** The system Google Solar (or the mock/manual fallback) actually fitted
-   * on the roof, captured on /roof — carried through to /create-proposal's
-   * `system` block. Null until /roof has resolved a result. */
-  solarSystem: {
-    panelCount: number;
-    panelWatts: number;
-    systemSizeKw: number;
-    estimatedAnnualAcKwh: number;
-    source: "google" | "mock";
-    orientation: string;
-    pitchDegrees: number;
-  } | null;
+  monthlyUsage: import("@/lib/annualLoad/types").MonthlyDemandEstimate[];
+  usageProfileSource: "observed_bills" | "observed_and_survey_derived" | "single_bill_and_survey" | null;
+  usageDataQuality: "high" | "medium" | "low" | null;
 }
 
 export const emptyBillFlow: BillFlowState = {
@@ -66,6 +50,7 @@ export const emptyBillFlow: BillFlowState = {
   billTotalCostDollars: null,
 
   homeDuringDay: null,
+  occupantCount: 1,
 
   heatingNotUsedThisMonth: false,
   heatingHours: null,
@@ -79,13 +64,14 @@ export const emptyBillFlow: BillFlowState = {
   hotWaterHours: null,
 
   estimatedAnnualKwh: null,
-  estimatedAnnualKwhSource: null,
   estimatedAnnualBillDollars: null,
   ratePerKwhCents: null,
-  rateSource: null,
-
-  solarSystem: null,
+  monthlyUsage: [],
+  usageProfileSource: null,
+  usageDataQuality: null,
 };
+
+export const NEW_ASSESSMENT_HREF = "/household?new=1";
 
 const STORAGE_KEY = "sunshare-bill-flow";
 
@@ -106,6 +92,18 @@ export function saveBillFlow(state: BillFlowState): void {
     window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
     // ignore write failures (private mode etc.)
+  }
+}
+
+/** Clears every browser-side reference to the previous assessment before a
+ * user starts entering a different property or household. */
+export function resetBillFlow(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.removeItem(STORAGE_KEY);
+    window.sessionStorage.removeItem("sunshare-latest-assessment-id");
+  } catch {
+    // ignore storage failures (private mode etc.)
   }
 }
 

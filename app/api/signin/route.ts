@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { backendFetch, backendErrorResponse } from "@/lib/backend/server";
+import { SESSION_COOKIE } from "@/lib/backend/session";
 
 interface SignInRequestBody {
   email?: string;
@@ -26,31 +28,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json<SignInApiResponse>({ ok: false, message: "Email is required" }, { status: 400 });
   }
 
-  const backendBaseUrl = process.env.BACKEND_URL;
-  if (!backendBaseUrl) {
-    // No account service configured — demo auth still succeeds locally so
-    // the rest of the app stays usable without it running.
-    return NextResponse.json<SignInApiResponse>({ ok: true, email });
-  }
-
   try {
-    const res = await fetch(`${backendBaseUrl}/create-user`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-
-    // 201 = new account, 400 = "already exists" — demo auth treats a
-    // returning user the same as a new one, there's no separate login
-    // endpoint yet. Any other status is a genuine backend problem.
-    if (!res.ok && res.status !== 400) {
-      throw new Error(`create-user responded ${res.status}`);
+    try {
+      await backendFetch("/create-user", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.includes("already exists")) {
+        throw error;
+      }
     }
-
-    return NextResponse.json<SignInApiResponse>({ ok: true, email });
+    const response = NextResponse.json<SignInApiResponse>({ ok: true, email });
+    response.cookies.set(SESSION_COOKIE, email, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    return response;
   } catch (err) {
-    // Never block the demo on the account service being down.
-    console.error("[api/signin] create-user call failed, proceeding anyway:", err);
-    return NextResponse.json<SignInApiResponse>({ ok: true, email });
+    return backendErrorResponse(err);
   }
 }

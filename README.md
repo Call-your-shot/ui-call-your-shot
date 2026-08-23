@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SunShare UI
 
-## Getting Started
+Next.js 16 frontend for tenant solar assessments, landlord proposals,
+operational dashboards, and sponsor-backed green credits.
 
-First, run the development server:
+## Architecture
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+The browser calls only Next.js Route Handlers. Server-only handlers read the
+HttpOnly demo session and call FastAPI through `BACKEND_URL`.
+
+```text
+Browser → Next.js BFF → FastAPI → domain calculations/repositories
+                    ↘ Google Solar (server-side only)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Account, property, plan, ROI, proposal, support-report, settings, and
+green-credit values come from FastAPI. Google Solar remains a Next-hosted
+integration because API keys must never reach the browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Frontend structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```text
+app/                 Next.js App Router pages and route handlers
+components/          Shared UI, app shells, focused-flow shells, and layouts
+lib/                 Client/server helpers, API payloads, calculations, tests
+assets/fonts/        Self-hosted Public Sans files used by next/font/local
+public/              Static product imagery and green-project assets
+```
 
-## Learn More
+Routes use normal folder names such as `dashboard`, `plans`, `roof`, and
+`signin`. The previous parenthesized route-group folders were removed so the
+tree is easier to scan in GitHub.
 
-To learn more about Next.js, take a look at the following resources:
+## Run locally
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Start the backend first:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+cd ../backend-call-your-shot
+python3.11 -m uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
 
-## Deploy on Vercel
+Configure and run the UI:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+cp .env.local.example .env.local
+npm install
+npm run dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000). The default backend URL
+is `http://127.0.0.1:8001`.
+
+The separate telemetry mock service, when used, runs on port `8000`; FastAPI
+is the only component that should call it.
+
+## Initial ROI assessment
+
+The assessment flow combines:
+
+1. property address and household answers;
+2. annual-load estimation from FastAPI;
+3. roof generation from Google Solar or a clearly labelled fallback;
+4. FastAPI Monte Carlo ROI through `/api/v1/assessments/initial`.
+
+The results page displays median tenant savings, landlord cash flow, payback
+percentiles, probability of payback, pricing assumptions, and data-quality
+warnings from the saved backend assessment. It distinguishes tenant solar
+share from generation self-consumption and does not call simulation ranges
+confidence intervals.
+
+Initial dynamic pricing is an assumption-based approximation. Operational
+bills use the backend's timezone-aware interval pricing engine with actual
+hourly meter data.
+
+The old bill-upload scanner route has been removed. New assessments now start
+from the property/roof flow rather than `/scan`, and there is no `/api/bill`
+route in the frontend.
+
+## Proposal PDF
+
+After a tenant creates a shareable landlord proposal, both the tenant and
+landlord views expose **Download proposal PDF**. The dynamic route
+`GET /api/proposal/{inviteToken}/pdf` loads the immutable proposal snapshot and
+its saved ROI assessment from FastAPI, then renders an A4 document containing:
+
+- property, tenant, landlord recipient, system, and energy details;
+- tenant savings and landlord payback percentile ranges;
+- dynamic-pricing assumptions and the hourly-pricing integration boundary;
+- Monte Carlo methodology, warnings, next steps, and acknowledgement lines;
+- a QR code back to the live landlord proposal.
+
+The document is deliberately labelled as a feasibility proposal rather than a
+quote, guarantee, confidence interval, final contract, or financial advice.
+If the process-local assessment has expired, PDF generation falls back to the
+financial snapshot stored on the proposal and displays an explicit warning.
+
+## Demo identity and persistence
+
+Email-only sign-in is for hackathon use. The email is stored in an HttpOnly
+cookie and injected into backend calls by the Next BFF. Demo account switching
+is controlled by `NEXT_PUBLIC_DEMO_MODE`.
+
+FastAPI's standard dashboard/workflow demo repository is process-local and
+resets when FastAPI restarts. Production must use Supabase authentication and
+the prepared persistent schema; the frontend does not silently replace a
+failed first-party backend request with local account or financial fixtures.
+
+## Verification
+
+```bash
+npm run lint
+npm test -- --run
+npm run build
+```
+
+`npm run build` uses `next build --webpack`. The project self-hosts Public Sans,
+so builds do not need to fetch fonts from Google.
