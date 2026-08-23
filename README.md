@@ -58,10 +58,11 @@ is the only component that should call it.
 
 The assessment flow combines:
 
-1. property address and household answers;
-2. annual-load estimation from FastAPI;
-3. roof generation from Google Solar or a clearly labelled fallback;
-4. FastAPI Monte Carlo ROI through `/api/v1/assessments/initial`.
+1. bill scanning or manual bill entry;
+2. property address and household answers;
+3. annual-load estimation from FastAPI;
+4. roof generation from Google Solar or a clearly labelled fallback;
+5. FastAPI Monte Carlo ROI through `/api/v1/assessments/initial`.
 
 The results page displays median tenant savings, landlord cash flow, payback
 percentiles, probability of payback, pricing assumptions, and data-quality
@@ -73,9 +74,10 @@ Initial dynamic pricing is an assumption-based approximation. Operational
 bills use the backend's timezone-aware interval pricing engine with actual
 hourly meter data.
 
-The old bill-upload scanner route has been removed. New assessments now start
-from the property/roof flow rather than `/scan`, and there is no `/api/bill`
-route in the frontend.
+Bill scanning is available at `/scan`. When `GEMINI_API_KEY` is configured,
+`/api/bill` extracts address, billing period, usage, bill total, and retailer
+from an uploaded bill image or PDF. Without that key, users can still enter the
+same bill fields manually.
 
 ## Proposal PDF
 

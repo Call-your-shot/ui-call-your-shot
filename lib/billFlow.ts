@@ -71,7 +71,7 @@ export const emptyBillFlow: BillFlowState = {
   usageDataQuality: null,
 };
 
-export const NEW_ASSESSMENT_HREF = "/household?new=1";
+export const NEW_ASSESSMENT_HREF = "/scan?new=1";
 
 const STORAGE_KEY = "sunshare-bill-flow";
 

@@ -466,9 +466,9 @@ const davidMarino: Account = {
   ],
 };
 
-function priyasTenancy(): Tenancy {
+function qimatxTenancy(): Tenancy {
   return {
-    id: "ten-priya-wollongong",
+    id: "ten-qimatx-wollongong",
     propertyId: "prop-owned-3",
     address: wollongongApartment,
     imageVariant: 1,
@@ -489,15 +489,15 @@ function priyasTenancy(): Tenancy {
   };
 }
 
-const priyaNair: Account = {
-  id: "priya",
-  name: "Priya Nair",
-  email: "priya.nair@example.com",
-  avatarInitials: "PN",
-  tenancies: [priyasTenancy()],
+const qimatxAccount: Account = {
+  id: "qimatx",
+  name: "Qimatx",
+  email: "qimatx@example.com",
+  avatarInitials: "Q",
+  tenancies: [qimatxTenancy()],
   ownedProperties: [
     {
-      id: "prop-priya-figtree",
+      id: "prop-qimatx-figtree",
       address: figtreeAddress,
       imageVariant: 4,
       occupancyStatus: "occupied",
@@ -555,10 +555,10 @@ const priyaNair: Account = {
 export const mockAccounts: Record<string, Account> = {
   sarah: sarahChen,
   david: davidMarino,
-  priya: priyaNair,
+  qimatx: qimatxAccount,
 };
 
-export const defaultAccountId = "priya";
+export const defaultAccountId = "qimatx";
 
 export function formatPropertyAddress(address: Address): string {
   return formatAddress(address);

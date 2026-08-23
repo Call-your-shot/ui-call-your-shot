@@ -60,7 +60,7 @@ const wallets: Record<string, GreenCreditWallet> = {
     lifetimeAllocatedCredits: 700,
     verifiedSolarKwh: 8600,
   },
-  priya: {
+  qimatx: {
     availableCredits: 2840,
     lifetimeEarnedCredits: 4760,
     lifetimeAllocatedCredits: 1920,
@@ -156,9 +156,9 @@ const activityByAccount: Record<string, GreenCreditActivity[]> = {
       credits: -700,
     },
   ],
-  priya: [
+  qimatx: [
     {
-      id: "priya-earn-aug",
+      id: "qimatx-earn-aug",
       type: "earned",
       title: "Credits earned",
       detail: "Tenant and owner shares from verified solar use",
@@ -166,7 +166,7 @@ const activityByAccount: Record<string, GreenCreditActivity[]> = {
       credits: 156,
     },
     {
-      id: "priya-project-1",
+      id: "qimatx-project-1",
       type: "allocated",
       title: "Supported Coastal habitat restoration",
       detail: "$10.00 of sponsor funding unlocked",
@@ -174,7 +174,7 @@ const activityByAccount: Record<string, GreenCreditActivity[]> = {
       credits: -1000,
     },
     {
-      id: "priya-project-2",
+      id: "qimatx-project-2",
       type: "allocated",
       title: "Supported Solar for social housing",
       detail: "$9.20 of sponsor funding unlocked",
@@ -185,11 +185,11 @@ const activityByAccount: Record<string, GreenCreditActivity[]> = {
 };
 
 export function getGreenCreditWallet(accountId: string): GreenCreditWallet {
-  return wallets[accountId] ?? wallets.priya;
+  return wallets[accountId] ?? wallets.qimatx;
 }
 
 export function getGreenCreditActivity(accountId: string): GreenCreditActivity[] {
-  return activityByAccount[accountId] ?? activityByAccount.priya;
+  return activityByAccount[accountId] ?? activityByAccount.qimatx;
 }
 
 export function getGreenCreditDashboardSummary(

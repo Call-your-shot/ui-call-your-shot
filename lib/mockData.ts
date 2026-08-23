@@ -343,7 +343,7 @@ export const mockPlans: Plan[] = [
     scenario: "shaded",
     address: scenarios.shaded.address,
     tenantName: "You",
-    landlordName: "Priya Nathan",
+    landlordName: "Qimatx",
     createdDate: "2026-06-02",
     balanceRepaid: 0,
     balanceTotal: 0,

@@ -25,7 +25,7 @@ const jumpLinks: { label: string; href: string }[] = [
 const accountBlurbs: Record<string, string> = {
   sarah: "Tenant only",
   david: "Landlord only, 2 properties",
-  priya: "Both — tenant & landlord",
+  qimatx: "Both — tenant & landlord",
 };
 
 export default function DemoPanel() {

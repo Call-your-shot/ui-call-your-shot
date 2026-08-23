@@ -16,7 +16,7 @@ import type { Account } from "@/lib/accounts";
 export const demoAccounts = [
   { id: "sarah", name: "Sarah Chen", email: "sarah.chen@example.com" },
   { id: "david", name: "David Marino", email: "david.marino@example.com" },
-  { id: "priya", name: "Priya Nair", email: "priya.nair@example.com" },
+  { id: "qimatx", name: "Qimatx", email: "qimatx@example.com" },
 ] as const;
 
 const emptyAccount: Account = {
