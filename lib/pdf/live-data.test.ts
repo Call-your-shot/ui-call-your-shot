@@ -25,7 +25,7 @@ const proposal: BackendProposal = {
   status: "sent",
   inviteToken: "invite-1",
   inviteUrl: "http://localhost:3000/invite/invite-1",
-  tenant: { name: "Priya Shah", email: "priya@example.com" },
+  tenant: { name: "Qimatx", email: "qimatx@example.com" },
   landlord: { name: "Property owner", email: "owner@example.com" },
   system: {
     panelCount: 18,

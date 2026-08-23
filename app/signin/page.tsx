@@ -71,7 +71,7 @@ export default function SignInPage() {
         </Button>
         <button
           type="button"
-          onClick={() => signIn("priya.nair@example.com")}
+          onClick={() => signIn("qimatx@example.com")}
           disabled={sending}
           className="py-2 text-center text-small font-medium text-primary underline underline-offset-2"
         >
