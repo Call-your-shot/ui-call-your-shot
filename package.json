@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint",
-    "test": "vitest run"
+    "lint": "eslint --config config/eslint.config.mjs",
+    "test": "vitest run --config config/vitest.config.mts"
   },
   "dependencies": {
     "@google/genai": "^2.18.0",
