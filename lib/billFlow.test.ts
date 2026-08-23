@@ -4,8 +4,8 @@ import { NEW_ASSESSMENT_HREF, resetBillFlow } from "./billFlow";
 describe("new assessment flow", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("starts at household entry rather than skipping directly to the roof", () => {
-    expect(NEW_ASSESSMENT_HREF).toBe("/household?new=1");
+  it("starts at bill scanning before household and roof", () => {
+    expect(NEW_ASSESSMENT_HREF).toBe("/scan?new=1");
   });
 
   it("clears both the prior household draft and completed assessment reference", () => {
