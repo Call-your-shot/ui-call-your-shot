@@ -14,14 +14,15 @@ import {
   type BillFlowState,
 } from "@/lib/billFlow";
 import type { AddressApiResponse } from "@/app/api/address/route";
+import type { BillApiResponse } from "@/lib/bill/types";
 import { fetchAnnualLoad } from "@/lib/annualLoad/client";
 import { cn } from "@/lib/utils";
-import { AlertTriangle, Loader2, MapPin } from "lucide-react";
+import { AlertTriangle, Camera, Loader2, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type HomeDuringDay = BillFlowState["homeDuringDay"];
-type StepKind = "property" | "bill" | "occupants" | "occupancy" | "heating" | "cooling" | "appliances";
+type StepKind = "property" | "occupants" | "occupancy" | "heating" | "cooling" | "appliances";
 type AddressStatus = "idle" | "checking" | "valid" | "invalid";
 
 const HOURS_OPTIONS: { id: HoursBucket; label: string }[] = [
@@ -44,6 +45,9 @@ export default function HouseholdPage() {
   const [billingPeriodEnd, setBillingPeriodEnd] = useState("");
   const [usageKwh, setUsageKwh] = useState<number | null>(null);
   const [billTotalCostDollars, setBillTotalCostDollars] = useState<number | null>(null);
+  const [scanStatus, setScanStatus] = useState<"idle" | "scanning" | "error">("idle");
+  const [scanError, setScanError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [homeDuringDay, setHomeDuringDay] = useState<HomeDuringDay>(null);
   const [occupantCount, setOccupantCount] = useState(1);
@@ -128,13 +132,57 @@ export default function HouseholdPage() {
     return () => clearTimeout(timeout);
   }, [address, hydrated]);
 
+  async function handleBillFile(file: File) {
+    if (file.size > 15 * 1024 * 1024) {
+      setScanError("That file is too large — try a smaller photo or PDF.");
+      setScanStatus("error");
+      return;
+    }
+    setScanStatus("scanning");
+    setScanError("");
+
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+    const [, base64] = dataUrl.split(",");
+
+    try {
+      const response = await fetch("/api/bill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: file.type || "application/octet-stream" }),
+      });
+      const data = (await response.json()) as BillApiResponse;
+
+      if (!data.ok) {
+        setScanError(data.message);
+        setScanStatus("error");
+        return;
+      }
+
+      setAddress(data.result.address);
+      setAddressStatus("idle");
+      setAddressMessage("");
+      setBillingPeriodStart(data.result.billingPeriodStart);
+      setBillingPeriodEnd(data.result.billingPeriodEnd);
+      setUsageKwh(data.result.usageKwh || null);
+      setBillTotalCostDollars(data.result.totalCostDollars || null);
+      setScanStatus("idle");
+    } catch {
+      setScanError("Something went wrong reading that file — try again or enter details manually.");
+      setScanStatus("error");
+    }
+  }
+
   // A winter bill already reflects heating; a summer bill already reflects
   // cooling — only ask about the one(s) this month's bill doesn't cover.
   const showHeating = billSeason !== "winter";
   const showCooling = billSeason !== "summer";
   const steps: StepKind[] = [
     "property",
-    "bill",
     "occupants",
     "occupancy",
     ...(showHeating ? (["heating"] as const) : []),
@@ -142,12 +190,12 @@ export default function HouseholdPage() {
     "appliances",
   ];
   const currentKind = steps[step];
-  const progressSteps = ["Property", "Electricity use", "Household", "Appliances"];
-  const progressStep = currentKind === "property" ? 0 : currentKind === "bill" ? 1 : currentKind === "appliances" ? 3 : 2;
+  const progressSteps = ["Property & electricity use", "Household", "Appliances"];
+  const progressStep = currentKind === "property" ? 0 : currentKind === "appliances" ? 2 : 1;
 
   const canAdvance =
-    (currentKind === "property" && address.trim().length >= 3 && addressStatus === "valid") ||
-    (currentKind === "bill" &&
+    (currentKind === "property" &&
+      address.trim().length >= 3 && addressStatus === "valid" &&
       usageKwh !== null && usageKwh > 0 &&
       !!billingPeriodStart && !!billingPeriodEnd &&
       billingPeriodEnd > billingPeriodStart &&
@@ -164,21 +212,15 @@ export default function HouseholdPage() {
   async function next() {
     if (currentKind === "property") {
       const formattedAddress = addressMessage || address.trim();
-      saveBillFlow({ ...loadBillFlow(), address: formattedAddress });
-      setAddress(formattedAddress);
-      setStep((s) => s + 1);
-      return;
-    }
-
-    if (currentKind === "bill") {
       saveBillFlow({
         ...loadBillFlow(),
-        address: addressMessage || address.trim(),
+        address: formattedAddress,
         billingPeriodStart,
         billingPeriodEnd,
         usageKwh,
         billTotalCostDollars,
       });
+      setAddress(formattedAddress);
       setBillSeason(getBillSeason(billingPeriodStart, billingPeriodEnd));
       setStep((s) => s + 1);
       return;
@@ -266,9 +308,47 @@ export default function HouseholdPage() {
 
         {currentKind === "property" && (
           <Question
-            title="Which home should we assess?"
-            subtitle="Enter the property address so we can inspect the correct roof and keep this assessment separate from your previous one."
+            title="Which home should we assess, and how much electricity does it use?"
+            subtitle="Scan a photo of your electricity bill and we'll fill in everything below automatically — or just type it in."
           >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) handleBillFile(file);
+                event.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={scanStatus === "scanning"}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary-light/50 bg-surface-alt px-4 py-4 text-center hover:border-primary hover:bg-secondary-light/30 disabled:opacity-60"
+            >
+              {scanStatus === "scanning" ? (
+                <>
+                  <Loader2 size={18} className="animate-spin text-primary" aria-hidden="true" />
+                  <span className="text-[14px] font-semibold text-ink">Reading your bill…</span>
+                </>
+              ) : (
+                <>
+                  <Camera size={18} className="text-primary" aria-hidden="true" />
+                  <span className="text-[14px] font-semibold text-ink">Scan a photo or PDF of your bill</span>
+                </>
+              )}
+            </button>
+            {scanStatus === "error" && (
+              <p className="mt-2 flex items-center gap-1.5 text-[12px] text-warning">
+                <AlertTriangle size={13} aria-hidden="true" />
+                {scanError}
+              </p>
+            )}
+            <p className="my-4 text-center text-[11px] font-semibold tracking-wide text-muted uppercase">
+              Or enter it manually
+            </p>
             <label htmlFor="assessment-address" className="block text-[13px] font-semibold text-muted">
               Property address
             </label>
@@ -296,16 +376,12 @@ export default function HouseholdPage() {
                 <><AlertTriangle size={13} className="text-warning" /><span className="text-warning">{addressMessage}</span></>
               )}
             </div>
-          </Question>
-        )}
 
-        {currentKind === "bill" && (
-          <Question
-            title="How much electricity does this household use?"
-            subtitle="Use a recent bill period. These figures determine the monthly demand profile and recommended panel count."
-          >
-            <div className="rounded-lg border border-line bg-surface p-5">
-              <div className="grid grid-cols-2 gap-3">
+            <div className="mt-6 rounded-lg border border-line bg-surface p-5">
+              <p className="text-[12px] font-semibold tracking-wide text-muted uppercase">
+                Electricity usage
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 <DateField label="Period start" value={billingPeriodStart} onChange={setBillingPeriodStart} />
                 <DateField label="Period end" value={billingPeriodEnd} onChange={setBillingPeriodEnd} />
               </div>

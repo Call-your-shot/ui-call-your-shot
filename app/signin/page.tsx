@@ -65,16 +65,6 @@ export default function SignInPage() {
         </div>
       </div>
 
-      <div className="mt-8">
-        <label htmlFor="email" className="mb-1.5 block text-[14px] font-semibold text-ink">
-          Password
-        </label>
-        <div className="flex items-center gap-2.5 rounded-lg border border-line bg-surface px-4 py-3.5 focus-within:border-primary">
-          <input type="password"
-            className="w-full bg-transparent text-[16px] text-ink outline-none placeholder:text-muted"/>
-        </div>
-      </div>
-
       <div className="mt-6 flex flex-col gap-3">
         <Button onClick={handleContinue} disabled={!email || sending} fullWidth>
           {sending ? "Continuing…" : "Continue"}
